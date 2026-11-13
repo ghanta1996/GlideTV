@@ -57,6 +57,8 @@ jobs:
           GLIDE_KEY_PASSWORD: ${{ secrets.GLIDE_KEY_PASSWORD }}
           GLIDE_KEY_ALIAS: ${{ secrets.GLIDE_KEY_ALIAS }}
         run: bash ./build.sh
+      - name: Test scene release invariants
+        run: python3 scripts/test_release.py
       - name: Package APK and update metadata
         run: python3 scripts/release-metadata.py --tag "$RELEASE_TAG"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
