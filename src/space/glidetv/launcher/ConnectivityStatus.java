@@ -85,7 +85,7 @@ public final class ConnectivityStatus extends LinearLayout {
 
     public void requestInitialStatusPermissions(int requestCode) {
         java.util.ArrayList<String> missing = new java.util.ArrayList<>();
-        if (activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) missing.add(Manifest.permission.ACCESS_FINE_LOCATION);
+        if (activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {missing.add(Manifest.permission.ACCESS_COARSE_LOCATION);missing.add(Manifest.permission.ACCESS_FINE_LOCATION);}
         if (Build.VERSION.SDK_INT >= 31 && activity.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) missing.add(Manifest.permission.BLUETOOTH_CONNECT);
         if (!missing.isEmpty()) activity.requestPermissions(missing.toArray(new String[0]), requestCode);
     }

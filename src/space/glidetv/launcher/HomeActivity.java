@@ -32,6 +32,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     private ConnectivityStatus connectivity;
     private RemoteControlServer mobileControl;
     private AppUpdater appUpdater;
+    private WeatherLocation weatherLocation;private ScenePacks scenePacks;private boolean locationPromptScheduled;
     private View remoteHit;
     private RemoteGlyph remoteGlyph;
     private TextView remoteLabel;
@@ -47,7 +48,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     private final ArrayList<WatchItem> watchItems=new ArrayList<>();
     private AlertDialog libraryDialog;
     private AlertDialog mobileDialog;
-    private String weatherCity="Abu Dhabi";
+    private String weatherCity="Your location";
     private long weatherFetched;
     private final Runnable selectWatch=()->renderSelectedWatch();
     private TextView clock, date, count;
@@ -63,27 +64,28 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         App(String p,String l,Intent i,Drawable d){pkg=p;label=l;intent=i;icon=d;}
     }
     private final Runnable ticker=new Runnable(){public void run(){
-        if(clock!=null){Date now=new Date();clock.setText(new SimpleDateFormat("h:mm",Locale.getDefault()).format(now));date.setText(new SimpleDateFormat("EEEE, d MMMM",Locale.getDefault()).format(now));}
+        if(clock!=null){Date now=new Date();clock.setText(localTime("h:mm",now));date.setText(localTime("EEEE, d MMMM",now));}
         if(active){if(backdrop!=null){backdrop.setConditions(weatherCode,weatherIsDay,Calendar.getInstance().get(Calendar.HOUR_OF_DAY));if(weatherCode==0&&weatherSymbol!=null){boolean day=backdrop.isDaytime();weatherSymbol.setText(day?"☀":"☾");weatherSymbol.setTextColor(day?0xffffd18a:0xffd9cbff);}}refreshWeather();handler.postDelayed(this,60000-System.currentTimeMillis()%60000);}
     }};
     private final BroadcastReceiver changes=new BroadcastReceiver(){public void onReceive(Context c,Intent i){if(active)loadApps();else loaded=false;}};
     @Override public void onCreate(Bundle b){
-        super.onCreate(b);prefs=getSharedPreferences("home",MODE_PRIVATE);
+        super.onCreate(b);prefs=getSharedPreferences("home",MODE_PRIVATE);weatherLocation=new WeatherLocation(this,this::locationChanged);scenePacks=new ScenePacks(this);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         String saved=prefs.getString("favorites",null);
         if(saved!=null){for(String p:saved.split(","))if(!p.isEmpty())favorites.add(p);}
-        else favorites.addAll(Arrays.asList("com.nuvio.tv","org.smarttube.stable","com.netflix.ninja","com.amazon.amazonvideo.livingroom","com.disneyplus.mea","com.spotify.tv.android"));
+
         buildShell();
         IntentFilter filter=new IntentFilter();filter.addAction(Intent.ACTION_PACKAGE_ADDED);filter.addAction(Intent.ACTION_PACKAGE_REMOVED);filter.addAction(Intent.ACTION_PACKAGE_CHANGED);filter.addDataScheme("package");registerReceiver(changes,filter,Context.RECEIVER_EXPORTED);
         getContentResolver().registerContentObserver(android.net.Uri.parse("content://android.media.tv/watch_next_program"),true,watchChanges);
         loadApps();
     }
-    @Override public void onResume(){super.onResume();active=true;if(appUpdater!=null)appUpdater.onResume();handler.removeCallbacks(ticker);ticker.run();meters.start();connectivity.start();if(!prefs.getBoolean("connection_permissions_prompted",false)){prefs.edit().putBoolean("connection_permissions_prompted",true).apply();connectivity.requestInitialStatusPermissions(43);}backdrop.setRunning(true);if(!loaded)loadApps();loadWatchNext();refreshWeather();}
+    @Override public void onResume(){super.onResume();active=true;if(appUpdater!=null)appUpdater.onResume();weatherLocation.onResume();handler.removeCallbacks(ticker);ticker.run();meters.start();connectivity.start();if(weatherLocation.configured()&&!prefs.getBoolean("connection_permissions_prompted",false)){prefs.edit().putBoolean("connection_permissions_prompted",true).apply();connectivity.requestInitialStatusPermissions(43);}backdrop.setRunning(true);if(!loaded)loadApps();loadWatchNext();refreshWeather();maybeSetupLocation();}
     @Override public void onPause(){super.onPause();active=false;handler.removeCallbacks(ticker);meters.stop();connectivity.stop();backdrop.setRunning(false);}
-    @Override public void onDestroy(){super.onDestroy();if(appUpdater!=null)appUpdater.close();handler.removeCallbacksAndMessages(null);unregisterReceiver(changes);backdrop.dispose();getContentResolver().unregisterContentObserver(watchChanges);if(mobileControl!=null)mobileControl.stop();worker.shutdownNow();artwork.shutdownNow();}
+    @Override public void onDestroy(){super.onDestroy();if(appUpdater!=null)appUpdater.close();weatherLocation.close();scenePacks.close();handler.removeCallbacksAndMessages(null);unregisterReceiver(changes);backdrop.dispose();getContentResolver().unregisterContentObserver(watchChanges);if(mobileControl!=null)mobileControl.stop();worker.shutdownNow();artwork.shutdownNow();}
     @Override public void onBackPressed(){if(firstApp!=null)firstApp.requestFocus();}
     @Override protected void onNewIntent(Intent i){super.onNewIntent(i);if(firstApp!=null)firstApp.requestFocus();}
+    String localTime(String pattern,Date now){SimpleDateFormat f=new SimpleDateFormat(pattern,Locale.getDefault());f.setTimeZone(TimeZone.getTimeZone(weatherLocation.timezone()));return f.format(now);}
     int dp(float n){return Math.round(n*getResources().getDisplayMetrics().density);}
     LinearLayout column(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);return l;}
     LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.HORIZONTAL);l.setGravity(Gravity.CENTER_VERTICAL);return l;}
@@ -108,7 +110,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         LinearLayout top=row();
         meters=new UsageMeters(this);meters.setOnRamClickListener(v->new RamDialog(this,()->{artCache.evictAll();handler.removeCallbacks(trimIdle);handler.postDelayed(trimIdle,600);},icons,pkg->{App owner=app(pkg);return owner==null?pkg:owner.label;}));top.addView(meters);connectivity=new ConnectivityStatus(this,(permission,requestCode)->requestPermissions(new String[]{permission},requestCode));top.addView(connectivity);top.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));LinearLayout.LayoutParams remoteLp=new LinearLayout.LayoutParams(dp(96),dp(32));remoteLp.setMarginEnd(dp(8));top.addView(remoteShortcut(),remoteLp);top.addView(button("App library",()->showLibrary()));top.addView(button("Settings",()->options()));page.addView(top,new LinearLayout.LayoutParams(-1,dp(32)));gap(page,12);
         LinearLayout hero=row();LinearLayout time=column();clock=text("",56,ink);clock.setTypeface(android.graphics.Typeface.create("sans-serif-light",0));date=text("",15,Color.WHITE);time.addView(clock);gap(time,3);time.addView(date);hero.addView(time,new LinearLayout.LayoutParams(dp(235),-2));
-        weatherSymbol=text("◌",43,0xffffd695);hero.addView(weatherSymbol);LinearLayout weatherBox=column();weatherBox.setGravity(Gravity.START);weather=text("Abu Dhabi",28,ink);weatherDetail=text("Loading weather…",14,Color.WHITE);weatherBox.addView(weather);gap(weatherBox,5);weatherBox.addView(weatherDetail);gap(weatherBox,5);weatherStats=text("",13,Color.WHITE);weatherRain=text("",13,Color.WHITE);weatherBox.addView(weatherStats);gap(weatherBox,4);weatherBox.addView(weatherRain);for(TextView detail:new TextView[]{date,weatherDetail,weatherStats,weatherRain})detail.setShadowLayer(dp(.7f),0,dp(.5f),0x90000b19);LinearLayout.LayoutParams wp=new LinearLayout.LayoutParams(dp(420),-2);wp.setMarginStart(dp(16));hero.addView(weatherBox,wp);page.addView(hero,new LinearLayout.LayoutParams(-1,dp(110)));gap(page,13);
+        weatherSymbol=text("◌",43,0xffffd695);hero.addView(weatherSymbol);LinearLayout weatherBox=column();weatherBox.setGravity(Gravity.START);weather=text("Set your location",28,ink);weatherDetail=text("Loading weather…",14,Color.WHITE);weatherBox.addView(weather);gap(weatherBox,5);weatherBox.addView(weatherDetail);gap(weatherBox,5);weatherStats=text("",13,Color.WHITE);weatherRain=text("",13,Color.WHITE);weatherBox.addView(weatherStats);gap(weatherBox,4);weatherBox.addView(weatherRain);for(TextView detail:new TextView[]{date,weatherDetail,weatherStats,weatherRain})detail.setShadowLayer(dp(.7f),0,dp(.5f),0x90000b19);LinearLayout.LayoutParams wp=new LinearLayout.LayoutParams(dp(420),-2);wp.setMarginStart(dp(16));hero.addView(weatherBox,wp);page.addView(hero,new LinearLayout.LayoutParams(-1,dp(110)));gap(page,13);
         LinearLayout fh=row();TextView ft=text("Favorites",17,ink);ft.setTypeface(null,1);fh.addView(ft,new LinearLayout.LayoutParams(0,-2,1));count=text("",10,0xffb4c4dc);fh.addView(count);page.addView(fh,new LinearLayout.LayoutParams(-1,dp(20)));gap(page,5);
         appStrip=new HorizontalScrollView(this);appStrip.setHorizontalScrollBarEnabled(false);appStrip.setClipToPadding(false);appStrip.setClipChildren(false);appStrip.setPadding(dp(4),dp(5),dp(4),dp(5));appStrip.setOverScrollMode(View.OVER_SCROLL_NEVER);appStrip.setSmoothScrollingEnabled(true);favoriteRow=row();favoriteRow.setClipChildren(false);appStrip.addView(favoriteRow);page.addView(appStrip,new LinearLayout.LayoutParams(-1,dp(146)));gap(page,13);
         LinearLayout wh=row();watchTitle=text("Continue watching",17,ink);watchTitle.setTypeface(null,1);wh.addView(watchTitle,new LinearLayout.LayoutParams(0,-2,1));watchCount=text("",10,0xffb4c4dc);wh.addView(watchCount);page.addView(wh,new LinearLayout.LayoutParams(-1,dp(20)));gap(page,7);
@@ -143,7 +145,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
                 found.add(new App(pkg,label,i,icon));
             }
             Collections.sort(found,(a,b)->a.label.compareToIgnoreCase(b.label));
-            handler.post(()->{loading=false;if(isDestroyed())return;apps.clear();apps.addAll(found);loaded=true;updateApps();});
+            handler.post(()->{loading=false;if(isDestroyed())return;apps.clear();apps.addAll(found);if(!prefs.contains("favorites")){for(int n=0;n<Math.min(6,apps.size());n++)favorites.add(apps.get(n).pkg);prefs.edit().putString("favorites",String.join(",",favorites)).apply();}loaded=true;updateApps();});
         });
     }
     App app(String p){for(App a:apps)if(a.pkg.equals(p))return a;return null;}
@@ -195,13 +197,13 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
             else open(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:"+a.pkg)));
         }).setNegativeButton("Close",null).show();
     }
-    void options(){new AlertDialog.Builder(this).setTitle("Glide TV").setItems(new String[]{"TV settings","Weather city","Refresh apps and watch history","Mobile control","Check for updates","About Glide TV"},(d,n)->{
+    void options(){new AlertDialog.Builder(this).setTitle("Glide TV").setItems(new String[]{"TV settings","Location & scenery","Refresh apps and watch history","Mobile control","Check for updates","About Glide TV"},(d,n)->{
         if(n==0)open(new Intent(Settings.ACTION_SETTINGS));
         else if(n==1)chooseWeatherCity();
         else if(n==2){loadApps();loadWatchNext();}
         else if(n==3)showMobileControl();
         else if(n==4){if(appUpdater==null)appUpdater=new AppUpdater(this);appUpdater.check();}
-        else new AlertDialog.Builder(this).setTitle("Glide Glass").setMessage("Glide TV 4.3.1\n\nHold OK on a favorite to move it, then use left/right. OK saves, Back cancels. Press Menu for other app options. Pin apps from the library with a long press.\n\nContinue Watching shows only history shared by the highlighted app. RAM and storage update every five seconds while Home is visible.\n\nWeather: Open-Meteo (open-meteo.com). Air quality: CAMS ENSEMBLE via Open-Meteo. CC BY 4.0. AQI uses the US scale; UV and rain chance are hourly forecasts. No ads or analytics.").setPositiveButton("Done",null).show();
+        else new AlertDialog.Builder(this).setTitle("Glide Glass").setMessage("Glide TV 4.4.0\n\nHold OK on a favorite to move it, then use left/right. OK saves, Back cancels. Press Menu for other app options. Pin apps from the library with a long press.\n\nContinue Watching shows only history shared by the highlighted app. RAM and storage update every five seconds while Home is visible.\n\nWeather: Open-Meteo (open-meteo.com). City search: Open-Meteo / GeoNames. Air quality: CAMS ENSEMBLE via Open-Meteo. CC BY 4.0. AQI uses the US scale; UV and rain chance are hourly forecasts. No ads or analytics.").setPositiveButton("Done",null).show();
     }).setNegativeButton("Close",null).show();}
     void showMobileControl(){
         try{
@@ -272,29 +274,34 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         for(int n=limit;n<watchPool.size();n++){WatchHolder unused=watchPool.get(n);unused.item=null;unused.image.setTag("");unused.image.setImageDrawable(null);}
         handler.removeCallbacks(trimIdle);handler.postDelayed(trimIdle,1600);
     }
-    void chooseWeatherCity(){String[] cities={"Abu Dhabi","Dubai","Sharjah"};new AlertDialog.Builder(this).setTitle("Weather city").setItems(cities,(d,n)->{prefs.edit().putString("weather_city",cities[n]).apply();weatherFetched=0;refreshWeather();}).setNegativeButton("Close",null).show();}
-    org.json.JSONObject fetchWeatherJson(String url)throws Exception{
+    void maybeSetupLocation(){if(!weatherLocation.configured()&&!prefs.getBoolean("location_prompted",false)&&!locationPromptScheduled){locationPromptScheduled=true;handler.postDelayed(()->{locationPromptScheduled=false;if(active&&!isDestroyed()){prefs.edit().putBoolean("location_prompted",true).apply();weatherLocation.showChooser();}},800);}}
+    void chooseWeatherCity(){new AlertDialog.Builder(this).setTitle("Location & scenery").setItems(new String[]{"Set weather location", "Refresh downloaded scenery"},(d,n)->{if(n==0)weatherLocation.showChooser();else if(weatherLocation.configured()){toast("Checking scenery packs…");scenePacks.ensure(weatherLocation.latitude(),weatherLocation.longitude(),true,()->{backdrop.reloadScene();toast("Scenery is ready");});}else weatherLocation.showChooser();}).setNegativeButton("Close",null).show();}
+    void locationChanged(){weatherFetched=0;weatherCity=weatherLocation.city();weather.setText(weatherCity);weatherDetail.setText("Loading local weather…");weatherStats.setText("");weatherRain.setText("");backdrop.setTimeZone(weatherLocation.timezone());backdrop.reloadScene();refreshWeather();}
+    org.json.JSONObject fetchWeatherJson(String url)throws Exception{return readJson(url);}
+    static org.json.JSONObject readJson(String url)throws Exception{
         java.net.URLConnection c=new java.net.URL(url).openConnection();c.setConnectTimeout(6000);c.setReadTimeout(6000);try(java.io.InputStream in=c.getInputStream();java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){byte[] bytes=new byte[4096];int n;while((n=in.read(bytes))!=-1){if(out.size()>200000)throw new java.io.IOException("Response limit");out.write(bytes,0,n);}return new org.json.JSONObject(out.toString("UTF-8"));}
     }
     String weatherNumber(org.json.JSONObject data,String field,String format){double n=data.optDouble(field,Double.NaN);return Double.isNaN(n)?"—":String.format(Locale.US,format,n);}
     void displayWeather(org.json.JSONObject data,String city,boolean cached){
         if(isDestroyed()||!city.equals(weatherCity))return;int code=data.optInt("weather_code",0);weatherCode=code;weatherIsDay=data.optInt("is_day",1)==1;
-        String condition=code==0?"Clear":code<=3?"Partly cloudy":code<=48?"Fog":code<=57?"Drizzle":code<=67?"Rain":code<=77?"Snow":code<=82?"Showers":"Thunderstorms";
+        String condition=code==0?"Clear":code==1?"Mainly clear":code==2?"Partly cloudy":code==3?"Overcast":code<=48?"Fog":code<=57?"Drizzle":code<=67?"Rain":code<=77?"Snow":code<=82?"Showers":code<=86?"Snow showers":"Thunderstorms";
         weather.setText(weatherNumber(data,"temperature_2m","%.0f")+"°  "+city);weatherDetail.setText(condition+" · Feels like "+weatherNumber(data,"apparent_temperature","%.0f")+"°"+(cached?" · cached":""));
         weatherStats.setText("Humidity "+weatherNumber(data,"relative_humidity_2m","%.0f")+"%  ·  UV "+weatherNumber(data,"uv_index","%.1f")+"  ·  AQI "+weatherNumber(data,"us_aqi","%.0f"));
         weatherRain.setText("Rain "+weatherNumber(data,"precipitation","%.1f")+" mm  ·  Chance "+weatherNumber(data,"precipitation_probability","%.0f")+"%  ·  Wind "+weatherNumber(data,"wind_speed_10m","%.0f")+" km/h");
-        weatherSymbol.setText(code==0?(weatherIsDay?"☀":"☾"):code<=3?"☁":code<=67?"☂":"☁");weatherSymbol.setTextColor(code==0?(weatherIsDay?0xffffd18a:0xffd9cbff):code<=3?0xffdae8ff:0xff92cfff);backdrop.setEnvironment(data.optDouble("wind_speed_10m",Double.NaN),data.optDouble("cloud_cover",Double.NaN),data.optString("sunrise",""),data.optString("sunset",""));backdrop.setConditions(code,weatherIsDay,Calendar.getInstance().get(Calendar.HOUR_OF_DAY));
+        backdrop.setTimeZone(data.optString("timezone",weatherLocation.timezone()));weatherSymbol.setText(code==0?(weatherIsDay?"☀":"☾"):(code>=71&&code<=77)||code==85||code==86?"❄":code<=3?"☁":code<=67?"☂":"☁");weatherSymbol.setTextColor(code==0?(weatherIsDay?0xffffd18a:0xffd9cbff):code<=3?0xffdae8ff:0xff92cfff);backdrop.setEnvironment(data.optDouble("wind_speed_10m",Double.NaN),data.optDouble("cloud_cover",Double.NaN),data.optString("sunrise",""),data.optString("sunset",""));backdrop.setConditions(code,weatherIsDay,Calendar.getInstance().get(Calendar.HOUR_OF_DAY));
     }
     void refreshWeather(){
-        if(System.currentTimeMillis()-weatherFetched<1800000)return;weatherFetched=System.currentTimeMillis();weatherCity=prefs.getString("weather_city","Abu Dhabi");final String city=weatherCity;
-        try{String cached=prefs.getString("weather_v3_"+city,"");if(!cached.isEmpty())displayWeather(new org.json.JSONObject(cached),city,true);}catch(Exception ignored){}
-        artwork.execute(()->{try{String lat=city.equals("Dubai")?"25.2048":city.equals("Sharjah")?"25.3463":"24.4539",lon=city.equals("Dubai")?"55.2708":city.equals("Sharjah")?"55.4209":"54.3773";
+        if(!weatherLocation.configured()){weather.setText("Set your location");weatherDetail.setText("Settings → Location & scenery");return;}
+        if(System.currentTimeMillis()-weatherFetched<1800000)return;weatherFetched=System.currentTimeMillis();weatherCity=weatherLocation.city();final String city=weatherCity,key=weatherLocation.key();final double lat=weatherLocation.latitude(),lon=weatherLocation.longitude();scenePacks.ensure(lat,lon,false,()->backdrop.reloadScene());
+        try{String cached=prefs.getString("weather_v4_"+key,"");if(!cached.isEmpty())displayWeather(new org.json.JSONObject(cached),city,true);}catch(Exception ignored){}
+        artwork.execute(()->{try{
             org.json.JSONObject all=fetchWeatherJson("https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&current=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,is_day,wind_speed_10m,cloud_cover&daily=sunrise,sunset&hourly=uv_index,precipitation_probability&forecast_days=1&timezone=auto"),data=all.getJSONObject("current"),hourly=all.getJSONObject("hourly");
+            data.put("timezone",all.optString("timezone",weatherLocation.timezone()));
             org.json.JSONObject daily=all.getJSONObject("daily");data.put("sunrise",daily.getJSONArray("sunrise").optString(0,""));data.put("sunset",daily.getJSONArray("sunset").optString(0,""));String hour=data.getString("time").substring(0,13);org.json.JSONArray times=hourly.getJSONArray("time");for(int n=0;n<times.length();n++)if(times.getString(n).startsWith(hour)){data.put("uv_index",hourly.getJSONArray("uv_index").opt(n));data.put("precipitation_probability",hourly.getJSONArray("precipitation_probability").opt(n));break;}
-            final org.json.JSONObject initial=new org.json.JSONObject(data.toString());handler.post(()->displayWeather(initial,city,false));
+            final org.json.JSONObject initial=new org.json.JSONObject(data.toString());handler.post(()->{if(key.equals(weatherLocation.key()))displayWeather(initial,city,false);});
             try{org.json.JSONObject air=fetchWeatherJson("https://air-quality-api.open-meteo.com/v1/air-quality?latitude="+lat+"&longitude="+lon+"&current=us_aqi,pm2_5,pm10&timezone=auto").getJSONObject("current");data.put("us_aqi",air.opt("us_aqi"));data.put("pm2_5",air.opt("pm2_5"));data.put("pm10",air.opt("pm10"));}catch(Exception ignored){}
-            prefs.edit().putString("weather_v3_"+city,data.toString()).apply();handler.post(()->displayWeather(data,city,false));
-        }catch(Exception e){handler.post(()->{if(!isDestroyed()&&prefs.getString("weather_v3_"+city,"").isEmpty()){weather.setText(city);weatherDetail.setText("Weather unavailable");weatherStats.setText("");weatherRain.setText("");}});}});
+            prefs.edit().putString("weather_v4_"+key,data.toString()).apply();handler.post(()->{if(key.equals(weatherLocation.key())){prefs.edit().putString("weather_timezone",data.optString("timezone",weatherLocation.timezone())).apply();displayWeather(data,city,false);}});
+        }catch(Exception e){handler.post(()->{if(!isDestroyed()&&key.equals(weatherLocation.key())&&prefs.getString("weather_v4_"+key,"").isEmpty()){weather.setText(city);weatherDetail.setText("Weather unavailable");weatherStats.setText("");weatherRain.setText("");}});}});
     }
     String value(android.database.Cursor c,String name){int n=c.getColumnIndex(name);return n<0||c.isNull(n)?"":c.getString(n);}
     long number(android.database.Cursor c,String name){try{return Long.parseLong(value(c,name));}catch(Exception e){return 0;}}
@@ -324,7 +331,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         if(permission){gap(box,12);box.addView(button("Enable Continue Watching",()->requestPermissions(new String[]{"android.permission.READ_TV_LISTINGS"},40)));}
         watchRow.addView(box,new LinearLayout.LayoutParams(dp(860),dp(124)));
     }
-    @Override public void onRequestPermissionsResult(int code,String[] names,int[] grants){super.onRequestPermissionsResult(code,names,grants);if(code==40)loadWatchNext();else if(code==41){connectivity.update();connectivity.openWifiSettings();}else if(code==42){connectivity.update();connectivity.openBluetoothSettings();}else if(code==43)connectivity.update();}
+    @Override public void onRequestPermissionsResult(int code,String[] names,int[] grants){super.onRequestPermissionsResult(code,names,grants);if(code==WeatherLocation.PERMISSION)weatherLocation.permissionResult();else if(code==40)loadWatchNext();else if(code==41){connectivity.update();connectivity.openWifiSettings();}else if(code==42){connectivity.update();connectivity.openBluetoothSettings();}else if(code==43)connectivity.update();}
     private static class WatchHolder {FrameLayout frame;ImageView image;TextView service,title;ProgressBar progress;WatchItem item;}
     WatchHolder makeWatchCard(){
         WatchHolder holder=new WatchHolder();FrameLayout frame=new FrameLayout(this);holder.frame=frame;LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(246),dp(124));lp.setMarginEnd(dp(13));frame.setLayoutParams(lp);frame.setClipToOutline(true);frame.setOutlineProvider(new ViewOutlineProvider(){public void getOutline(View v,android.graphics.Outline o){o.setRoundRect(0,0,v.getWidth(),v.getHeight(),dp(18));}});

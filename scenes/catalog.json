@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": "1.0.0",
+  "packs": [
+    {
+      "id": "generic",
+      "version": "1.0.0",
+      "kind": "landscape",
+      "title": "Open Horizon",
+      "fallback": true,
+      "assets": {"cloud.png": "assets/live/cloud.png"}
+    },
+    {
+      "id": "abu-dhabi",
+      "version": "1.0.0",
+      "kind": "city",
+      "title": "Abu Dhabi Skyline",
+      "location": {"latitude": 24.4539, "longitude": 54.3773, "radiusKm": 60},
+      "assets": {
+        "city.png": "assets/live/city.png",
+        "city-night.png": "assets/live/city-night.png",
+        "cloud.png": "assets/live/cloud.png"
+      }
+    }
+  ]
+}

@@ -1,92 +1,93 @@
 # Glide TV
 
-A lightweight Android TV launcher with a moving Abu Dhabi skyline, weather-aware scenery, large app icons, and a phone browser remote. Built with native Android views and Java.
+### Your TV. Beautifully simple.
 
-[Download the latest APK](https://github.com/ghanta1996/GlideTV/releases/latest) · [Release builds](https://github.com/ghanta1996/GlideTV/actions/workflows/release.yml) · [MIT license](LICENSE)
+A clean home for Android TV, with living scenery, your favorite apps, and control from your phone.
 
-![Glide TV home screen with Abu Dhabi skyline](screenshots/home-abu-dhabi.png)
+[Download Glide](https://github.com/ghanta1996/GlideTV/releases/latest) · [Make it your Home](docs/DEFAULT_HOME.md) · [What's new](CHANGELOG.md) · [Release builds](https://github.com/ghanta1996/GlideTV/actions/workflows/release.yml)
 
-*Real TV capture, cropped above Continue Watching to keep viewing history private.*
+![Glide TV home screen, showing the optional Abu Dhabi scene](screenshots/home-abu-dhabi.png)
 
-## Features
+*An example of Glide with the optional Abu Dhabi Skyline pack. Your location is chosen during setup; this scene is not the default for everyone. Capture cropped above Continue Watching to keep viewing history private.*
 
-- Clock, date, configurable weather city, temperature, feels-like, humidity, UV, precipitation, rain chance, wind, and US AQI.
-- Generated Abu Dhabi panorama with native camera movement, day/night blending, moving clouds, and rain driven by weather conditions. The default scene uses bitmap rendering. An optional local aerial video can be used when supplied separately; no video is bundled.
-- Large favorites, a separate app library, bounded D-pad navigation, and Continue Watching for the highlighted app when it shares Android TV Watch Next data.
-- Live RAM/storage meters and Wi-Fi, LAN, and Bluetooth connection shortcuts.
-- Optional debugging helper for running-process details, app stopping, storage browsing, file transfers, and global remote keys.
-- Browser remote with TV status, D-pad, volume, app launch/stop, file download/upload, and **Apps → Install APK** from your phone.
-- QR pairing, a green active-remote indicator, pairing-dialog dismissal on connection, and paired-session shutdown after five minutes without a command. Status polling does not extend the session.
-- **Settings → Check for updates** downloads the latest public APK, verifies its SHA-256 and package/version, then asks Android to confirm installation.
-- Android TV's existing voice-search service stays available.
+## A home that feels yours
 
-## Phone remote
+**A view that stays alive.** Scenery moves gently with weather and daylight. Choose your city or use the TV's location during setup; Glide downloads a matching scene pack from GitHub. A native landscape fills in wherever a dedicated city scene isn't available.
+
+**Your apps, front and center.** Big icons, quick favorites, a separate app library, and Continue Watching that follows the highlighted app. Watch history appears when the media app shares it with Android TV.
+
+**Your phone is a remote.** Scan to pair, navigate the TV, adjust volume, browse storage, send files, manage running apps, or install an APK from your phone with confirmation on the TV.
+
+**Light from the start.** Artwork is downloaded separately and cached for offline use. The native Java launcher bundles no scene imagery and needs no video for the default live scenery. RAM/storage meters and connection shortcuts keep useful TV information close.
+
+## From the sofa to your phone
 
 <p>
-  <img src="screenshots/mobile-remote.png" width="310" alt="Glide browser remote with memory, network, display details and D-pad">
-  <img src="screenshots/mobile-apps.png" width="310" alt="Browser Apps page with Install APK and running app memory">
+  <img src="screenshots/mobile-remote.png" width="310" alt="Glide browser remote with TV status and a D-pad">
+  <img src="screenshots/mobile-apps.png" width="310" alt="Browser app management with the Install APK button">
 </p>
 
-*Browser screenshots show demo device data, not a connected personal TV.*
+*Browser screenshots use demo device data.*
 
-## Install
+## Get started
 
-Requires Android TV / Google TV, Android 8.0 (API 26) or newer. Development has focused on a TCL Android 14 TV; behavior on other firmware may differ.
+Glide runs on Android TV / Google TV with Android 8.0 (API 26) or newer. Replacement-Home behavior depends on the TV's firmware.
 
-1. Download the APK from [Releases](https://github.com/ghanta1996/GlideTV/releases/latest).
-2. Sideload it using your preferred TV installer, or ADB:
-
-   ```sh
-   adb -s <adb-serial> install -r GlideTV-v4.3.1.apk
-   ```
-
-3. Open Glide TV. Select it as the default Home in Android settings where supported. With ADB, the equivalent is:
+1. Download the APK from [Releases](https://github.com/ghanta1996/GlideTV/releases/latest) and sideload it using your preferred installer, or ADB:
 
    ```sh
-   adb -s <adb-serial> shell cmd package set-home-activity --user 0 space.glidetv.launcher/.HomeActivity
+   adb -s <adb-serial> install -r GlideTV-v4.4.0.apk
    ```
 
-Some TV firmware overrides third-party Home selection. Review your device's behavior before disabling any stock launcher components. Installing Glide itself does not disable or remove other apps.
+2. Open Glide. Choose **Use device location** or **Search city**. If the TV cannot provide a location, city/postal-code search works worldwide. Downloading scenes and fetching weather require internet access.
+3. Follow the complete [default-Home guide](docs/DEFAULT_HOME.md). It covers TV settings, wireless ADB, saving the original launcher, selecting Glide, testing Home, firmware restrictions, and restoring the original Home.
+4. Pin your favorite apps from the library. Existing saved favorites and supported older location settings are preserved during an update.
 
-The app may request TV listings / Watch Next access, Wi-Fi SSID access, and Bluetooth connection permission. Continue Watching depends on each media app sharing its history through Android TV.
+The app may request Android location, TV listings/Watch Next, and Bluetooth connection access. Location is optional; searching for a city does not require device-location permission. Coordinates determine local weather, air quality, time zone, sunrise, and sunset. Weather includes temperature, feels-like, humidity, UV, precipitation, rain chance, wind, and US AQI.
 
-## Mobile control and APK installation
+## Scenes that travel light
 
-Open **Remote** on Glide Home, or **Settings → Mobile control**, and scan the QR on your phone while on the same network. The address and pairing code are also displayed. The dots-only QR is light on dark; scanners without inverted-code support may need the address/code fallback.
+Scene packs have independent versions and a [separate changelog](scenes/CHANGELOG.md). Only the selected pack is downloaded. Pack downloads are checksummed and cached; the launcher also has a native fallback before download. City-specific coverage is currently available for Abu Dhabi, with a generic landscape everywhere else. More packs can be added without an APK update.
 
-The browser can navigate the TV, show memory and device details, browse shared storage, transfer files, and install APKs. Choose **Apps → Install APK**, select an APK from your phone, and confirm on the TV. If Android asks you to allow Glide to install apps, enable that permission, then use **Retry installation** in the browser.
+See [scene pack documentation](scenes/README.md) for supported artwork, coverage, versioning, and contributing a new scene. The artwork is an artistic backdrop, not a live camera feed or a guarantee of an exact view of the user's city.
 
-Storage browsing and file transfers require the optional ADB helper below. Uploads go to `Download/Glide Remote`; uploads cannot overwrite existing files. Android private app directories remain inaccessible. Individual files are limited to 2 GB.
+## Mobile control and app installation
 
-The server accepts the TV's local subnet, uses temporary PIN pairing and a bearer session, and serves HTTP. Use a trusted private network; do not expose its ports to the internet. Pairing codes expire after ten minutes. Sessions expire after thirty minutes, or the server stops after five minutes with no authenticated action other than status polling. **Turn off** closes the server manually.
+Open **Remote** on Glide Home, or **Settings → Mobile control**, and scan the QR while your phone is on the same network. The address/code are also displayed. The dots-only QR uses light-on-dark colors; scanners without inverted-code support can use the address and code.
+
+Pairing closes the TV dialog and turns the Remote indicator green. The browser shows TV status, apps, and shared files. Choose **Apps → Install APK**, select a file on your phone, and confirm installation on the TV. If Android asks you to allow Glide to install apps, enable that setting and use **Retry installation** in the browser.
+
+TV-wide process management, shared-storage browsing/transfers, and global key input require the optional ADB helper below. Uploads go to `Download/Glide Remote`, do not overwrite existing files, and are limited to 2 GB each. Android private app directories remain inaccessible.
+
+The local server uses temporary PIN pairing and a bearer session over HTTP on the TV's subnet. Use a trusted private network and do not expose the ports to the internet. PINs expire after ten minutes, sessions after thirty minutes, and paired remotes stop after five minutes without an action. Status polling does not keep the session alive. **Turn off** closes the server manually.
 
 ## Optional ADB helper
 
-Android restricts process control and global key input for ordinary apps. Glide's helper runs as a debugging-shell process on `127.0.0.1`, authenticates using a random local token, and exposes fixed operations rather than arbitrary shell commands.
+The helper runs as a debugging-shell process on `127.0.0.1`, authenticates with a random app-generated token, and offers fixed operations rather than arbitrary shell commands.
 
-Open Glide and its RAM dialog or Remote once to create the token. Then either build the project and run:
+Open Glide and its RAM dialog or Remote once to create the token. After building from source:
 
 ```sh
 ./start-memory-helper.sh <adb-serial>
 ```
 
-Or download `glide-memory-helper.dex` from the same release, download the source scripts, and run:
+Or download `glide-memory-helper.dex` from the same release, download the source scripts, and use:
 
 ```sh
 GLIDE_HELPER_DEX=/path/to/glide-memory-helper.dex ./start-memory-helper.sh <adb-serial>
 ```
 
-The helper scripts require zsh and ADB. The helper stops when the TV reboots. Android can reclaim memory again after cleanup; free RAM is not a persistent reservation.
+The helper script requires zsh and ADB. Restart the helper after a TV reboot. Android can reclaim memory after a cleanup; free RAM is not a persistent reservation.
 
-## In-app updates
+## Updates
 
-From version 4.3.1 onward, choose **Settings → Check for updates**. Glide checks this repository's latest stable release and reads its `update.json` asset. Downloads use HTTPS and are streamed to disk; the updater verifies the checksum, expected package, and version code before opening Android's installer. Android verifies the APK signing identity and asks for confirmation. Favorites and settings are preserved by an ordinary update.
+Choose **Settings → Check for updates**. Glide checks the latest stable public APK, downloads over HTTPS, verifies its checksum and package/version, then opens Android's installation confirmation. Android enforces the signing identity; normal upgrades preserve your settings. Checks are manual.
 
-Update checks are manual. Android can evict the launcher while another app is active; the browser remote then becomes available again after you reopen Home and start Remote.
+Android may evict Glide while another app is active. Reopen Home and start Remote to make the browser connection available again.
 
-## Build from source
+## Build and release
 
-Requirements: Bash, JDK 17, Android SDK platform 36, build-tools 35.0.0, and standard `zip`/JDK tools. ZXing Core 3.5.4 is vendored under `lib/`.
+Requires Bash, JDK 17, Android SDK platform 36, build-tools 35.0.0, and standard zip/JDK tools. ZXing Core is vendored under `lib/`.
 
 ```sh
 export JAVA_HOME=/path/to/jdk-17
@@ -94,36 +95,18 @@ export ANDROID_SDK_ROOT=/path/to/android-sdk
 ./build.sh
 ```
 
-Outputs are `build/GlideTV.apk` and `build/bridge-dex/classes.dex`. On macOS, the script also recognizes the Homebrew JDK/SDK locations used during development.
+Outputs: `build/GlideTV.apk` and `build/bridge-dex/classes.dex`. The build recognizes the development machine's Homebrew defaults on macOS. Local builds generate an ignored development keystore if needed. For your own releases, provide `GLIDE_KEYSTORE`, `GLIDE_KEYSTORE_PASSWORD`, `GLIDE_KEY_PASSWORD`, and `GLIDE_KEY_ALIAS`. Keep the same signing key for upgrades; a separately signed fork cannot replace an official build.
 
-A local build creates an ignored development keystore on first use. For your own releases, supply `GLIDE_KEYSTORE`, `GLIDE_KEYSTORE_PASSWORD`, `GLIDE_KEY_PASSWORD`, and `GLIDE_KEY_ALIAS`. Keep the same signing key for future updates. A locally signed build cannot replace an official release with a different signing key.
+The [APK workflow](.github/workflows/release.yml) publishes a signed APK, helper, checksums, `update.json`, current scene packs, and the scene catalogue. The [scene workflow](.github/workflows/scenes.yml) publishes packs independently. Both require a changelog entry and derive release notes from it.
 
-## Release automation
+Maintainers configure `GLIDE_KEYSTORE_BASE64`, `GLIDE_KEYSTORE_PASSWORD`, `GLIDE_KEY_PASSWORD`, and `GLIDE_KEY_ALIAS` as repository secrets. The signing key is never committed; CI fails if it is missing.
 
-The [release workflow](.github/workflows/release.yml) builds on Ubuntu with JDK 17, verifies APK signing, and publishes:
+For an app release, increase the Android version code, set `versionName`, update [CHANGELOG.md](CHANGELOG.md), and push a matching `v<versionName>` tag. For a scene release, update the catalogue/pack versions and [scene changelog](scenes/CHANGELOG.md), then push `scene-v<catalogVersion>`. Published pack content cannot change under an existing version. Manual workflow dispatch supports rebuilding an existing tag.
 
-- `GlideTV-v<version>.apk`
-- `glide-memory-helper.dex`
-- `SHA256SUMS`
-- `update.json` for the in-app updater
-
-Maintainers configure these repository secrets: `GLIDE_KEYSTORE_BASE64`, `GLIDE_KEYSTORE_PASSWORD`, `GLIDE_KEY_PASSWORD`, and `GLIDE_KEY_ALIAS`. The private keystore never belongs in Git. CI fails if the signing key is missing.
-
-To release, increase `android:versionCode`, set `android:versionName` in `AndroidManifest.xml`, commit, then push a matching tag:
-
-```sh
-git tag v4.3.1
-git push origin main v4.3.1
-```
-
-The tag must exactly match `v` plus the manifest version name. Existing tags can also be rebuilt with the workflow's manual dispatch. Forks should change the GitHub repository URL in `AppUpdater.java` and use their own signing key.
-
-## Restore the original TV Home
-
-[`restore-tv.sh`](restore-tv.sh) restores the particular TCL/Google TV packages and animation settings changed during development. Review it before use on another TV; package/component names and disabled states vary by firmware. It does not uninstall Glide or delete user app data.
+Forks should update the repository URLs in the updater, scene downloader, and release scripts and use their own release key.
 
 ## Credits and license
 
-Glide source is [MIT licensed](LICENSE). ZXing Core is Apache 2.0; its license is included in [`lib/ZXING-LICENSE.txt`](lib/ZXING-LICENSE.txt). Weather comes from Open-Meteo; air quality uses CAMS ENSEMBLE through Open-Meteo. Source attribution is also shown in About.
+[MIT license](LICENSE). ZXing Core uses Apache 2.0, included in [`lib/ZXING-LICENSE.txt`](lib/ZXING-LICENSE.txt). Weather and air quality use Open-Meteo/CAMS ENSEMBLE; city search uses Open-Meteo geocoding with GeoNames data. Attribution is also available in About.
 
-The city and cloud artwork is AI-generated, with prompts in [`assets/live`](assets/live). It is an artistic interpretation of Abu Dhabi, not a live camera feed. App names and logos visible in the home screenshot belong to their respective owners and are not bundled third-party apps.
+Artwork prompts and provenance are under [`assets/live`](assets/live). Third-party app logos shown in screenshots belong to their respective owners; those apps are not included in Glide.

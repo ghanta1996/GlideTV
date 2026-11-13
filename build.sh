@@ -11,7 +11,9 @@ JAR="$SDK/platforms/android-36/android.jar"
 ZXING="$PWD/lib/zxing-core-3.5.4.jar"
 mkdir -p build/classes build/dex
 "$BT/aapt2" compile --dir res -o build/resources.zip
-"$BT/aapt2" link -o build/base.apk --manifest AndroidManifest.xml -I "$JAR" -A assets build/resources.zip
+mkdir -p build/apk-assets/remote
+cp assets/remote/index.html build/apk-assets/remote/index.html
+"$BT/aapt2" link -o build/base.apk --manifest AndroidManifest.xml -I "$JAR" -A build/apk-assets build/resources.zip
 javac -source 8 -target 8 -bootclasspath "$JAR:$BT/core-lambda-stubs.jar" -cp "$ZXING" -d build/classes src/space/glidetv/launcher/*.java
 jar cf build/classes.jar -C build/classes .
 "$BT/d8" --lib "$JAR" --min-api 26 --output build/dex build/classes.jar "$ZXING"

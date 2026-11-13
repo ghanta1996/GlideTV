@@ -18,3 +18,7 @@ audit/
 *.p12
 *.log
 node_modules/
+
+# Python release tooling
+__pycache__/
+*.py[cod]

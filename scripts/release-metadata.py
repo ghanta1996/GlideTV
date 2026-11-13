@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import subprocess
 import xml.etree.ElementTree as ET
 
 def main():
@@ -32,6 +33,7 @@ def main():
     shutil.copyfile(root / 'build/bridge-dex/classes.dex', helper)
     helper_hash = hashlib.sha256(helper.read_bytes()).hexdigest()
     (output / 'SHA256SUMS').write_text(checksum + '  ' + apk.name + '\n' + helper_hash + '  ' + helper.name + '\n')
+    subprocess.run(['python3', str(root / 'scripts/package-scenes.py'), '--tag', args.tag, '--output', str(output)], check=True)
     print('Prepared ' + apk.name)
 
 if __name__ == '__main__':
