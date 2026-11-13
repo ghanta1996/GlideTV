@@ -10,7 +10,7 @@
       "fallback": true,
       "sha256": "54e87db70ab07050ef06b8a8b8457b0ffc14c4a2dbeb73e6b46abc9ffeb781c8",
       "size": 1506386,
-      "url": "https://github.com/ghanta1996/GlideTV/releases/download/scene-v1.0.0/scene-generic-v1.0.0.zip"
+      "url": "https://github.com/ghanta1996/GlideTV/releases/download/v4.4.0/scene-generic-v1.0.0.zip"
     },
     {
       "id": "abu-dhabi",
@@ -24,7 +24,7 @@
       },
       "sha256": "a0bca1dd99b181485ad649b22daee7d6d6553e944aba445e16e558175c390d2a",
       "size": 7335745,
-      "url": "https://github.com/ghanta1996/GlideTV/releases/download/scene-v1.0.0/scene-abu-dhabi-v1.0.0.zip"
+      "url": "https://github.com/ghanta1996/GlideTV/releases/download/v4.4.0/scene-abu-dhabi-v1.0.0.zip"
     }
   ]
 }
