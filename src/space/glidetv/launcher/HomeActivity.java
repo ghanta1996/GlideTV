@@ -201,7 +201,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         else if(n==2){loadApps();loadWatchNext();}
         else if(n==3)showMobileControl();
         else if(n==4){if(appUpdater==null)appUpdater=new AppUpdater(this);appUpdater.check();}
-        else new AlertDialog.Builder(this).setTitle("Glide Glass").setMessage("Glide TV 4.3.0\n\nHold OK on a favorite to move it, then use left/right. OK saves, Back cancels. Press Menu for other app options. Pin apps from the library with a long press.\n\nContinue Watching shows only history shared by the highlighted app. RAM and storage update every five seconds while Home is visible.\n\nWeather: Open-Meteo (open-meteo.com). Air quality: CAMS ENSEMBLE via Open-Meteo. CC BY 4.0. AQI uses the US scale; UV and rain chance are hourly forecasts. No ads or analytics.").setPositiveButton("Done",null).show();
+        else new AlertDialog.Builder(this).setTitle("Glide Glass").setMessage("Glide TV 4.3.1\n\nHold OK on a favorite to move it, then use left/right. OK saves, Back cancels. Press Menu for other app options. Pin apps from the library with a long press.\n\nContinue Watching shows only history shared by the highlighted app. RAM and storage update every five seconds while Home is visible.\n\nWeather: Open-Meteo (open-meteo.com). Air quality: CAMS ENSEMBLE via Open-Meteo. CC BY 4.0. AQI uses the US scale; UV and rain chance are hourly forecasts. No ads or analytics.").setPositiveButton("Done",null).show();
     }).setNegativeButton("Close",null).show();}
     void showMobileControl(){
         try{

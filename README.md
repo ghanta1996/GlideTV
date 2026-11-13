@@ -37,7 +37,7 @@ Requires Android TV / Google TV, Android 8.0 (API 26) or newer. Development has 
 2. Sideload it using your preferred TV installer, or ADB:
 
    ```sh
-   adb -s <adb-serial> install -r GlideTV-v4.3.0.apk
+   adb -s <adb-serial> install -r GlideTV-v4.3.1.apk
    ```
 
 3. Open Glide TV. Select it as the default Home in Android settings where supported. With ADB, the equivalent is:
@@ -80,7 +80,7 @@ The helper scripts require zsh and ADB. The helper stops when the TV reboots. An
 
 ## In-app updates
 
-From version 4.3.0 onward, choose **Settings → Check for updates**. Glide checks this repository's latest stable release and reads its `update.json` asset. Downloads use HTTPS and are streamed to disk; the updater verifies the checksum, expected package, and version code before opening Android's installer. Android verifies the APK signing identity and asks for confirmation. Favorites and settings are preserved by an ordinary update.
+From version 4.3.1 onward, choose **Settings → Check for updates**. Glide checks this repository's latest stable release and reads its `update.json` asset. Downloads use HTTPS and are streamed to disk; the updater verifies the checksum, expected package, and version code before opening Android's installer. Android verifies the APK signing identity and asks for confirmation. Favorites and settings are preserved by an ordinary update.
 
 Update checks are manual. Android can evict the launcher while another app is active; the browser remote then becomes available again after you reopen Home and start Remote.
 
@@ -112,8 +112,8 @@ Maintainers configure these repository secrets: `GLIDE_KEYSTORE_BASE64`, `GLIDE_
 To release, increase `android:versionCode`, set `android:versionName` in `AndroidManifest.xml`, commit, then push a matching tag:
 
 ```sh
-git tag v4.3.0
-git push origin main v4.3.0
+git tag v4.3.1
+git push origin main v4.3.1
 ```
 
 The tag must exactly match `v` plus the manifest version name. Existing tags can also be rebuilt with the workflow's manual dispatch. Forks should change the GitHub repository URL in `AppUpdater.java` and use their own signing key.
