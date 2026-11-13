@@ -21,6 +21,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    concurrency: scene-catalog-publish
     permissions:
       contents: write
     env:
@@ -64,6 +65,8 @@ jobs:
           path: build/release/*
           if-no-files-found: error
           retention-days: 30
+      - name: Generate release notes
+        run: python3 scripts/release-notes.py --tag "$RELEASE_TAG" > build/release-notes.md
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -71,9 +74,15 @@ jobs:
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" build/release/* --clobber
+            gh release edit "$RELEASE_TAG" --notes-file build/release-notes.md
           else
-            gh release create "$RELEASE_TAG" build/release/* --verify-tag --title "Glide TV $RELEASE_TAG" --generate-notes
+            gh release create "$RELEASE_TAG" build/release/* --verify-tag --title "Glide TV $RELEASE_TAG" --notes-file build/release-notes.md
           fi
+      - name: Publish scene catalogue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 scripts/publish-scene-index.py build/release/scenes.json
       - name: Remove runner signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/glide-release.jks"
