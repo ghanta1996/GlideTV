@@ -29,6 +29,8 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
+      - name: Test scene release invariants
+        run: python3 scripts/test_release.py
       - name: Build scene archives and verify version immutability
         run: python3 scripts/package-scenes.py --tag "$RELEASE_TAG"
       - name: Generate scene release notes
