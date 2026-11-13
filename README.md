@@ -110,3 +110,9 @@ Forks should update the repository URLs in the updater, scene downloader, and re
 [MIT license](LICENSE). ZXing Core uses Apache 2.0, included in [`lib/ZXING-LICENSE.txt`](lib/ZXING-LICENSE.txt). Weather and air quality use Open-Meteo/CAMS ENSEMBLE; city search uses Open-Meteo geocoding with GeoNames data. Attribution is also available in About.
 
 Artwork prompts and provenance are under [`assets/live`](assets/live). Third-party app logos shown in screenshots belong to their respective owners; those apps are not included in Glide.
+
+## Development checks
+
+`python3 scripts/test_release.py` checks reproducible scene archives, immutable versions, fallback coverage, and catalogue/tag rules. Both release workflows run these checks.
+
+After `./build.sh`, run `./scripts/test-on-device.sh <adb-serial>` for Android runtime checks. It uses a separate shell process with temporary preferences/files and the public catalogue to test fresh setup, legacy-location migration, worldwide geocoding, city/fallback selection, verified downloads, cache reuse, and cleanup. It does not install or launch Glide or change the TV's real location/settings. Network access is required, and the script removes its own temporary test files afterward.
