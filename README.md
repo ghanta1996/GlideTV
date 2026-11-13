@@ -57,6 +57,8 @@ Open **Remote** on Glide Home, or **Settings → Mobile control**, and scan the 
 
 Pairing closes the TV dialog and turns the Remote indicator green. The browser shows TV status, apps, and shared files. Choose **Apps → Install APK**, select a file on your phone, and confirm installation on the TV. If Android asks you to allow Glide to install apps, enable that setting and use **Retry installation** in the browser.
 
+For a **Downloader code or APK link**, open **Apps → Downloader**, enter the numeric code or a direct HTTPS APK URL, and choose **Download APK**. The TV downloads in the background, shows progress and the APK's app name/package/version, then **Install on TV** opens Android's confirmation. This download route works without the ADB helper. You can cancel a running download; after granting install permission, tap Install on TV again. Links must resolve to an APK over public HTTPS; web pages, app bundles, private-network addresses, and files over 1 GB are unsupported. Downloader codes resolve through AFTVnews; no separate Downloader app is needed.
+
 TV-wide process management, shared-storage browsing/transfers, and global key input require the optional ADB helper below. Uploads go to `Download/Glide Remote`, do not overwrite existing files, and are limited to 2 GB each. Android private app directories remain inaccessible.
 
 The local server uses temporary PIN pairing and a bearer session over HTTP on the TV's subnet. Use a trusted private network and do not expose the ports to the internet. PINs expire after ten minutes, sessions after thirty minutes, and paired remotes stop after five minutes without an action. Status polling does not keep the session alive. **Turn off** closes the server manually.
@@ -81,9 +83,19 @@ The helper script requires zsh and ADB. Restart the helper after a TV reboot. An
 
 ## Updates
 
-Choose **Settings → Check for updates**. Glide checks the latest stable public APK, downloads over HTTPS, verifies its checksum and package/version, then opens Android's installation confirmation. Android enforces the signing identity; normal upgrades preserve your settings. Checks are manual.
+Choose **Settings → Check for updates**. Glide checks the latest stable public APK, downloads over HTTPS, verifies its checksum and package/version, then opens Android's installation confirmation. Android enforces the signing identity; normal upgrades preserve your settings. From v4.5.0, Glide also checks quietly when Home opens, then at most every six hours while Home is active. A selectable **Glide update available** notice appears on Home; it does not interrupt another app or install anything automatically. Failed background checks retry after fifteen minutes. Versions before v4.5.0 need one manual check to receive this feature.
 
 Android may evict Glide while another app is active. Reopen Home and start Remote to make the browser connection available again.
+
+## Share Glide with a Downloader code
+
+Each release publishes this stable APK address:
+
+```text
+https://github.com/ghanta1996/GlideTV/releases/latest/download/GlideTV.apk
+```
+
+Submit that URL at the [AFTVnews URL Shortener](https://go.aftvnews.com/) and complete its verification to obtain a numeric code. The code can be entered in Downloader or Glide's mobile Downloader field. Use the stable address so future releases keep the same code; AFTVnews does not currently let creators edit a code's destination. No numeric Glide code has been registered by this repository.
 
 ## Build and release
 
@@ -94,6 +106,8 @@ export JAVA_HOME=/path/to/jdk-17
 export ANDROID_SDK_ROOT=/path/to/android-sdk
 ./build.sh
 ```
+
+Run `bash scripts/test-downloads.sh` to exercise Downloader resolution, redirects, and rejected/incomplete downloads.
 
 Outputs: `build/GlideTV.apk` and `build/bridge-dex/classes.dex`. The build recognizes the development machine's Homebrew defaults on macOS. Local builds generate an ignored development keystore if needed. For your own releases, provide `GLIDE_KEYSTORE`, `GLIDE_KEYSTORE_PASSWORD`, `GLIDE_KEY_PASSWORD`, and `GLIDE_KEY_ALIAS`. Keep the same signing key for upgrades; a separately signed fork cannot replace an official build.
 

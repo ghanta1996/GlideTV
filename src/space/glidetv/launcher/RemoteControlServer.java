@@ -68,6 +68,8 @@ public final class RemoteControlServer {
         else main.postDelayed(idleCheck,remaining);
     }
     private Thread acceptThread;
+    private ApkDownloads downloads;
+    private synchronized ApkDownloads downloads(){if(downloads==null)downloads=new ApkDownloads(activity);return downloads;}
 
     private static final class Attempt { int failures; long blockedUntil, window; }
     public RemoteControlServer(Activity activity, Host host) { this.activity=activity; this.host=host; }
@@ -96,6 +98,7 @@ public final class RemoteControlServer {
         main.removeCallbacks(idleCheck);
         try { if(server!=null) server.close(); } catch(Exception ignored) { }
         server=null;boundPort=0;
+        if(downloads!=null){downloads.close();downloads=null;}
         if(wasActive)main.post(()->host.remoteStateChanged(false));
     }
 
@@ -183,7 +186,7 @@ public final class RemoteControlServer {
             if("GET".equals(method)&&"/".equals(path)) { servePage(out); return; }
             if("POST".equals(method)&&"/pair".equals(path)) { pair(in,out,length,s.getInetAddress().getHostAddress()); return; }
             if(!authorized(headers)) { respond(out,401,"application/json","{\"error\":\"Pair this phone with the PIN shown on the TV\"}"); return; }
-            if(!"GET".equals(method)||!"/api/status".equals(path)) touchCommand();
+            if(!"GET".equals(method)||(!"/api/status".equals(path)&&!"/api/apk-download".equals(path))) touchCommand();
             try {
                 if("GET".equals(method)&&"/api/status".equals(path)) json(out,200,host.status());
                 else if("GET".equals(method)&&"/api/apps".equals(path)) { JSONObject j=new JSONObject();j.put("apps",host.apps());json(out,200,j); }
@@ -198,6 +201,10 @@ public final class RemoteControlServer {
                 else if("POST".equals(method)&&"/api/upload".equals(path)) { String name=uri.getQueryParameter("name");FileInfo f=host.upload(name,in,length);JSONObject j=f.json();j.put("message","Uploaded to the TV");json(out,200,j); }
                 else if("GET".equals(method)&&"/api/file".equals(path)) streamFile(out,uri.getQueryParameter("id"));
                 else if("POST".equals(method)&&"/api/install".equals(path)) { JSONObject b=bodyJson(in,length);if(!host.install(b.optString("id","")))throw new IllegalStateException("Install could not be started");ok(out,"Android's installer will ask for confirmation on the TV"); }
+                else if("POST".equals(method)&&"/api/apk-download".equals(path)) { JSONObject b=bodyJson(in,length);json(out,200,downloads().start(b.optString("source",""))); }
+                else if("GET".equals(method)&&"/api/apk-download".equals(path)) json(out,200,downloads().snapshot(uri.getQueryParameter("id")));
+                else if("POST".equals(method)&&"/api/apk-download/install".equals(path)) { JSONObject b=bodyJson(in,length);downloads().install(b.optString("id",""));ok(out,"Confirm installation on the TV"); }
+                else if("POST".equals(method)&&"/api/apk-download/cancel".equals(path)) { JSONObject b=bodyJson(in,length);downloads().cancel(b.optString("id",""));ok(out,"Download cancelled"); }
                 else respond(out,404,"application/json","{\"error\":\"Not found\"}");
             } catch(Exception e) { JSONObject j=new JSONObject();j.put("error",e.getMessage()==null?e.getClass().getSimpleName():e.getMessage());json(out,400,j); }
         } catch(Exception ignored) { }

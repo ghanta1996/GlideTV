@@ -32,6 +32,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     private ConnectivityStatus connectivity;
     private RemoteControlServer mobileControl;
     private AppUpdater appUpdater;
+    private TextView updateNotice;
     private WeatherLocation weatherLocation;private ScenePacks scenePacks;private boolean locationPromptScheduled;
     private View remoteHit;
     private RemoteGlyph remoteGlyph;
@@ -65,7 +66,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     }
     private final Runnable ticker=new Runnable(){public void run(){
         if(clock!=null){Date now=new Date();clock.setText(localTime("h:mm",now));date.setText(localTime("EEEE, d MMMM",now));}
-        if(active){if(backdrop!=null){backdrop.setConditions(weatherCode,weatherIsDay,Calendar.getInstance().get(Calendar.HOUR_OF_DAY));if(weatherCode==0&&weatherSymbol!=null){boolean day=backdrop.isDaytime();weatherSymbol.setText(day?"☀":"☾");weatherSymbol.setTextColor(day?0xffffd18a:0xffd9cbff);}}refreshWeather();handler.postDelayed(this,60000-System.currentTimeMillis()%60000);}
+        if(active){if(appUpdater!=null)appUpdater.checkIfDue();if(backdrop!=null){backdrop.setConditions(weatherCode,weatherIsDay,Calendar.getInstance().get(Calendar.HOUR_OF_DAY));if(weatherCode==0&&weatherSymbol!=null){boolean day=backdrop.isDaytime();weatherSymbol.setText(day?"☀":"☾");weatherSymbol.setTextColor(day?0xffffd18a:0xffd9cbff);}}refreshWeather();handler.postDelayed(this,60000-System.currentTimeMillis()%60000);}
     }};
     private final BroadcastReceiver changes=new BroadcastReceiver(){public void onReceive(Context c,Intent i){if(active)loadApps();else loaded=false;}};
     @Override public void onCreate(Bundle b){
@@ -76,6 +77,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         if(saved!=null){for(String p:saved.split(","))if(!p.isEmpty())favorites.add(p);}
 
         buildShell();
+        appUpdater=new AppUpdater(this);appUpdater.setAvailabilityChanged(()->{String version=appUpdater.availableVersion();updateNotice.setText(version==null?"":"↑  Glide "+version+" available");updateNotice.setVisibility(version==null?View.GONE:View.VISIBLE);});
         IntentFilter filter=new IntentFilter();filter.addAction(Intent.ACTION_PACKAGE_ADDED);filter.addAction(Intent.ACTION_PACKAGE_REMOVED);filter.addAction(Intent.ACTION_PACKAGE_CHANGED);filter.addDataScheme("package");registerReceiver(changes,filter,Context.RECEIVER_EXPORTED);
         getContentResolver().registerContentObserver(android.net.Uri.parse("content://android.media.tv/watch_next_program"),true,watchChanges);
         loadApps();
@@ -115,6 +117,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         appStrip=new HorizontalScrollView(this);appStrip.setHorizontalScrollBarEnabled(false);appStrip.setClipToPadding(false);appStrip.setClipChildren(false);appStrip.setPadding(dp(4),dp(5),dp(4),dp(5));appStrip.setOverScrollMode(View.OVER_SCROLL_NEVER);appStrip.setSmoothScrollingEnabled(true);favoriteRow=row();favoriteRow.setClipChildren(false);appStrip.addView(favoriteRow);page.addView(appStrip,new LinearLayout.LayoutParams(-1,dp(146)));gap(page,13);
         LinearLayout wh=row();watchTitle=text("Continue watching",17,ink);watchTitle.setTypeface(null,1);wh.addView(watchTitle,new LinearLayout.LayoutParams(0,-2,1));watchCount=text("",10,0xffb4c4dc);wh.addView(watchCount);page.addView(wh,new LinearLayout.LayoutParams(-1,dp(20)));gap(page,7);
         watchStrip=new HorizontalScrollView(this);watchStrip.setHorizontalScrollBarEnabled(false);watchStrip.setClipChildren(false);watchStrip.setClipToPadding(false);watchStrip.setPadding(dp(4),dp(4),dp(4),dp(4));watchStrip.setOverScrollMode(View.OVER_SCROLL_NEVER);watchStrip.setSmoothScrollingEnabled(true);watchRow=row();watchRow.setClipChildren(false);watchStrip.addView(watchRow);page.addView(watchStrip,new LinearLayout.LayoutParams(-1,dp(132)));
+        updateNotice=button("",()->appUpdater.showAvailable());updateNotice.setVisibility(View.GONE);updateNotice.setTextColor(mint);updateNotice.setContentDescription("Glide update available. Select to review and install.");FrameLayout.LayoutParams noticeLp=new FrameLayout.LayoutParams(-2,dp(34),Gravity.BOTTOM|Gravity.END);noticeLp.setMargins(0,0,dp(40),dp(12));root.addView(updateNotice,noticeLp);
         library=column();
     }
     void showLibrary(){
@@ -203,7 +206,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         else if(n==2){loadApps();loadWatchNext();}
         else if(n==3)showMobileControl();
         else if(n==4){if(appUpdater==null)appUpdater=new AppUpdater(this);appUpdater.check();}
-        else new AlertDialog.Builder(this).setTitle("Glide Glass").setMessage("Glide TV 4.4.0\n\nHold OK on a favorite to move it, then use left/right. OK saves, Back cancels. Press Menu for other app options. Pin apps from the library with a long press.\n\nContinue Watching shows only history shared by the highlighted app. RAM and storage update every five seconds while Home is visible.\n\nWeather: Open-Meteo (open-meteo.com). City search: Open-Meteo / GeoNames. Air quality: CAMS ENSEMBLE via Open-Meteo. CC BY 4.0. AQI uses the US scale; UV and rain chance are hourly forecasts. No ads or analytics.").setPositiveButton("Done",null).show();
+        else new AlertDialog.Builder(this).setTitle("Glide Glass").setMessage("Glide TV 4.5.0\n\nHold OK on a favorite to move it, then use left/right. OK saves, Back cancels. Press Menu for other app options. Pin apps from the library with a long press.\n\nContinue Watching shows only history shared by the highlighted app. RAM and storage update every five seconds while Home is visible.\n\nWeather: Open-Meteo (open-meteo.com). City search: Open-Meteo / GeoNames. Air quality: CAMS ENSEMBLE via Open-Meteo. CC BY 4.0. AQI uses the US scale; UV and rain chance are hourly forecasts. No ads or analytics.").setPositiveButton("Done",null).show();
     }).setNegativeButton("Close",null).show();}
     void showMobileControl(){
         try{

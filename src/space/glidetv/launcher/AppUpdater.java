@@ -15,7 +15,7 @@ import java.security.MessageDigest;
 import java.util.Locale;
 import java.util.concurrent.*;
 
-/** Explicit, user-confirmed updates from the project's public GitHub releases. */
+/** Quiet Home checks with explicit, user-confirmed installation from public GitHub releases. */
 final class AppUpdater {
     private static final String API="https://api.github.com/repos/ghanta1996/GlideTV/releases/latest";
     private static final String DOWNLOADS="https://github.com/ghanta1996/GlideTV/releases/download/";
@@ -25,14 +25,20 @@ final class AppUpdater {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private boolean busy,waitingPermission;
     private volatile boolean cancelled,closed;
-    private Release pending;
+    private Release pending,available;
+    private long nextCheckAt;
+    private Runnable availabilityChanged;
+    void setAvailabilityChanged(Runnable callback){availabilityChanged=callback;}
+    String availableVersion(){return available==null?null:available.name;}
+    void showAvailable(){if(available==null){check();return;}try{offer(available,activity.getPackageManager().getPackageInfo(activity.getPackageName(),0).versionName);}catch(Exception e){error("Couldn't open update",e);}}
     private AlertDialog progress;
     private static final class Release {String name,url,sha,notes;long code,size;}
     AppUpdater(Activity activity){this.activity=activity;}
 
-    void check(){
-        if(busy)return;
-        busy=true;Toast.makeText(activity,"Checking for updates…",Toast.LENGTH_SHORT).show();
+    void check(){check(true);}
+    private void check(boolean interactive){
+        if(busy||closed)return;
+        busy=true;if(interactive)Toast.makeText(activity,"Checking for updates…",Toast.LENGTH_SHORT).show();
         worker.execute(()->{
             try{
                 JSONObject release=json(API),metadata=null,apk=null;
@@ -45,8 +51,8 @@ final class AppUpdater {
                 if(!r.sha.matches("[a-fA-F0-9]{64}")||r.size<=0||r.size>MAX_APK)throw new IOException("Invalid release metadata.");
                 PackageInfo current=activity.getPackageManager().getPackageInfo(activity.getPackageName(),0);
                 long installed=versionCode(current);
-                ui.post(()->{busy=false;if(closed)return;if(r.code<=installed)show(new AlertDialog.Builder(activity).setTitle("You're up to date").setMessage("Glide TV "+current.versionName+" is installed.").setPositiveButton("Done",null).create());else offer(r,current.versionName);});
-            }catch(Exception e){ui.post(()->{busy=false;error("Couldn't check for updates",e);});}
+                ui.post(()->{busy=false;if(closed)return;nextCheckAt=SystemClock.elapsedRealtime()+6L*60*60*1000;available=r.code>installed?r:null;if(availabilityChanged!=null)availabilityChanged.run();if(interactive){if(available==null)show(new AlertDialog.Builder(activity).setTitle("You're up to date").setMessage("Glide TV "+current.versionName+" is installed.").setPositiveButton("Done",null).create());else offer(r,current.versionName);}});
+            }catch(Exception e){ui.post(()->{busy=false;nextCheckAt=SystemClock.elapsedRealtime()+15L*60*1000;if(interactive)error("Couldn't check for updates",e);});}
         });
     }
     private void offer(Release r,String current){
@@ -62,7 +68,8 @@ final class AppUpdater {
         progress=new AlertDialog.Builder(activity).setTitle("Downloading Glide TV "+r.name).setMessage("Starting download…").setNegativeButton("Cancel",(d,n)->cancelled=true).create();progress.setCanceledOnTouchOutside(false);progress.setOnCancelListener(d->cancelled=true);show(progress);
         worker.execute(()->downloadAndInstall(r));
     }
-    void onResume(){if(waitingPermission){waitingPermission=false;if(pending!=null&&activity.getPackageManager().canRequestPackageInstalls())install(pending);}}
+    void onResume(){if(waitingPermission){waitingPermission=false;if(pending!=null&&activity.getPackageManager().canRequestPackageInstalls())install(pending);}checkIfDue();}
+    void checkIfDue(){if(!busy&&SystemClock.elapsedRealtime()>=nextCheckAt)check(false);}
     private void downloadAndInstall(Release r){
         File file=new File(activity.getCacheDir(),"glide-update.apk");HttpURLConnection connection=null;int sessionId=-1;boolean committed=false;
         PackageInstaller installer=activity.getPackageManager().getPackageInstaller();

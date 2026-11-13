@@ -2,6 +2,14 @@
 
 App releases use semantic versions and an increasing Android version code. Scene packs have their own [changelog](scenes/CHANGELOG.md) and can be published independently.
 
+## 4.5.0
+
+- Download APKs directly to the TV from a Downloader code or public HTTPS APK link in the mobile Apps page.
+- Live download progress, cancellation, APK validation, and app identity before installation; downloads do not require the ADB helper.
+- Android installation confirmation and a retry after granting install permission.
+- Automatic update checks on Home, with a selectable update notice when a newer stable release is available. Downloads and installation remain user initiated.
+- A stable `GlideTV.apk` release asset for permanent Downloader codes alongside the versioned APK and checksums.
+
 ## 4.4.0
 
 - Worldwide city/postal-code search and optional Android location setup.
