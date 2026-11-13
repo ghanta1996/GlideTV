@@ -1,0 +1,51 @@
+name: Scene Packs
+
+on:
+  push:
+    tags: ['scene-v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing scene-v tag matching the catalogue version
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  scenes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency: scene-catalog-publish
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - name: Validate scene tag
+        run: '[[ "$RELEASE_TAG" =~ ^scene-v[0-9]+\.[0-9]+\.[0-9]+$ ]]'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          persist-credentials: false
+      - name: Build scene archives and verify version immutability
+        run: python3 scripts/package-scenes.py --tag "$RELEASE_TAG"
+      - name: Generate scene release notes
+        run: python3 scripts/release-notes.py --tag "$RELEASE_TAG" --scenes > build/scene-notes.md
+      - name: Publish scene release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" build/scenes/* --clobber
+            gh release edit "$RELEASE_TAG" --notes-file build/scene-notes.md --latest=false
+          else
+            gh release create "$RELEASE_TAG" build/scenes/* --verify-tag --title "Glide Scenes $RELEASE_TAG" --notes-file build/scene-notes.md --latest=false
+          fi
+      - name: Publish catalogue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 scripts/publish-scene-index.py build/scenes/scenes.json
