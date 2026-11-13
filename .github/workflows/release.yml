@@ -25,7 +25,6 @@ jobs:
       contents: write
     env:
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
-      GLIDE_KEYSTORE: ${{ runner.temp }}/glide-release.jks
     steps:
       - name: Validate release tag
         shell: bash
@@ -47,6 +46,8 @@ jobs:
           GLIDE_KEYSTORE_BASE64: ${{ secrets.GLIDE_KEYSTORE_BASE64 }}
         run: |
           test -n "$GLIDE_KEYSTORE_BASE64" || { echo 'Missing release signing key secret'; exit 1; }
+          GLIDE_KEYSTORE="$RUNNER_TEMP/glide-release.jks"
+          printf 'GLIDE_KEYSTORE=%s\n' "$GLIDE_KEYSTORE" >> "$GITHUB_ENV"
           umask 077
           printf '%s' "$GLIDE_KEYSTORE_BASE64" | base64 --decode > "$GLIDE_KEYSTORE"
       - name: Build and verify signed APK
@@ -75,4 +76,4 @@ jobs:
           fi
       - name: Remove runner signing key
         if: always()
-        run: rm -f "$GLIDE_KEYSTORE"
+        run: rm -f "$RUNNER_TEMP/glide-release.jks"
