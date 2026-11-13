@@ -1,0 +1,20 @@
+# Local builds and signing credentials
+build/
+*.jks
+*.keystore
+
+# TV captures and private audit data
+audit/
+
+# OS/editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Local credentials and transfer captures
+.env
+.env.*
+*.pem
+*.p12
+*.log
+node_modules/
