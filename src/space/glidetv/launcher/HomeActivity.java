@@ -38,7 +38,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     private AppUpdater appUpdater;
     private TextView updateNotice;
     private WeatherLocation weatherLocation;private ScenePacks scenePacks;private boolean locationPromptScheduled;
-    private View remoteHit;
+    private View remoteHit, libraryButton, settingsButton;
     private RemoteGlyph remoteGlyph;
     private TextView remoteLabel;
     private boolean remoteActive;
@@ -130,7 +130,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     @Override public void onResume(){super.onResume();active=true;if(appUpdater!=null)appUpdater.onResume();weatherLocation.onResume();handler.removeCallbacks(ticker);ticker.run();meters.start();connectivity.start();if(weatherLocation.configured()&&!prefs.getBoolean("connection_permissions_prompted",false)){prefs.edit().putBoolean("connection_permissions_prompted",true).apply();connectivity.requestInitialStatusPermissions(43);}backdrop.setRunning(true);if(!loaded)loadApps();hideWatch();handler.removeCallbacks(revealWatch);handler.postDelayed(revealWatch,WATCH_DWELL);loadWatchNext();refreshWeather();maybeSetupLocation();}
     @Override public void onPause(){super.onPause();active=false;handler.removeCallbacks(revealWatch);hideWatch();if(dockMagnify!=null)dockMagnify.end();handler.removeCallbacks(ticker);meters.stop();connectivity.stop();backdrop.setRunning(false);}
     @Override public void onDestroy(){super.onDestroy();if(appUpdater!=null)appUpdater.close();weatherLocation.close();scenePacks.close();handler.removeCallbacksAndMessages(null);unregisterReceiver(changes);backdrop.dispose();getContentResolver().unregisterContentObserver(watchChanges);if(mobileControl!=null)mobileControl.stop();worker.shutdownNow();artwork.shutdownNow();}
-    @Override public void onBackPressed(){if(firstApp!=null)firstApp.requestFocus();}
+    @Override public void onBackPressed(){if(movingPkg!=null){finishMove(false);return;}if(firstApp!=null)firstApp.requestFocus();}
     @Override protected void onNewIntent(Intent i){super.onNewIntent(i);if(firstApp!=null)firstApp.requestFocus();}
     String localTime(String pattern,Date now){SimpleDateFormat f=new SimpleDateFormat(pattern,Locale.getDefault());f.setTimeZone(TimeZone.getTimeZone(weatherLocation.timezone()));return f.format(now);}
     int dp(float n){return Math.round(n*getResources().getDisplayMetrics().density);}
@@ -176,7 +176,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         FrameLayout root=new FrameLayout(this);backdrop=new Atmosphere(this);root.addView(backdrop,new FrameLayout.LayoutParams(-1,-1));
         page=column();page.setPadding(dp(40),dp(18),dp(40),dp(12));page.setClipChildren(false);root.addView(page,new FrameLayout.LayoutParams(-1,-1));setContentView(root);
         LinearLayout top=row();
-        meters=new UsageMeters(this);meters.setOnRamClickListener(v->new RamDialog(this,()->{artCache.evictAll();handler.removeCallbacks(trimIdle);handler.postDelayed(trimIdle,600);},icons,pkg->{App owner=app(pkg);return owner==null?pkg:owner.label;}));top.addView(meters);connectivity=new ConnectivityStatus(this,(permission,requestCode)->requestPermissions(new String[]{permission},requestCode));top.addView(connectivity);top.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));LinearLayout.LayoutParams remoteLp=new LinearLayout.LayoutParams(dp(96),dp(32));remoteLp.setMarginEnd(dp(8));top.addView(remoteShortcut(),remoteLp);top.addView(button("App library",()->showLibrary()));top.addView(button("Settings",()->options()));page.addView(top,new LinearLayout.LayoutParams(-1,dp(32)));gap(page,12);
+        meters=new UsageMeters(this);meters.setOnRamClickListener(v->new RamDialog(this,()->{artCache.evictAll();handler.removeCallbacks(trimIdle);handler.postDelayed(trimIdle,600);},icons,pkg->{App owner=app(pkg);return owner==null?pkg:owner.label;}));top.addView(meters);connectivity=new ConnectivityStatus(this,(permission,requestCode)->requestPermissions(new String[]{permission},requestCode));top.addView(connectivity);top.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));LinearLayout.LayoutParams remoteLp=new LinearLayout.LayoutParams(dp(96),dp(32));remoteLp.setMarginEnd(dp(8));top.addView(remoteShortcut(),remoteLp);libraryButton=button("App library",()->showLibrary());settingsButton=button("Settings",()->options());top.addView(libraryButton);top.addView(settingsButton);page.addView(top,new LinearLayout.LayoutParams(-1,dp(32)));gap(page,12);
         LinearLayout hero=row();LinearLayout time=column();clock=text("",56,ink);clock.setTypeface(android.graphics.Typeface.create("sans-serif-light",0));date=text("",15,Color.WHITE);time.addView(clock);gap(time,3);time.addView(date);hero.addView(time,new LinearLayout.LayoutParams(dp(235),-2));
         weatherSymbol=text("◌",43,0xffffd695);hero.addView(weatherSymbol);LinearLayout weatherBox=column();weatherBox.setGravity(Gravity.START);weather=text("Set your location",28,ink);weatherDetail=text("Loading weather…",14,Color.WHITE);weatherBox.addView(weather);gap(weatherBox,5);weatherBox.addView(weatherDetail);gap(weatherBox,5);weatherStats=text("",13,Color.WHITE);weatherRain=text("",13,Color.WHITE);weatherBox.addView(weatherStats);gap(weatherBox,4);weatherBox.addView(weatherRain);for(TextView detail:new TextView[]{date,weatherDetail,weatherStats,weatherRain})detail.setShadowLayer(dp(.7f),0,dp(.5f),0x90000b19);LinearLayout.LayoutParams wp=new LinearLayout.LayoutParams(dp(420),-2);wp.setMarginStart(dp(16));hero.addView(weatherBox,wp);page.addView(hero,new LinearLayout.LayoutParams(-1,dp(110)));gap(page,13);
         page.addView(new View(this),new LinearLayout.LayoutParams(1,0,1));
@@ -290,13 +290,20 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         return item;
     }
     void startMove(App a){
-        movingPkg=a.pkg;moveBackup=new ArrayList<>(favorites);View v=favoriteRow.findViewWithTag("fav:"+a.pkg);
-        if(!(v instanceof LinearLayout))return;View icon=((LinearLayout)v).getChildAt(0);
+        if(movingPkg!=null)return;View v=favoriteRow.findViewWithTag("fav:"+a.pkg);
+        if(!(v instanceof LinearLayout))return;movingPkg=a.pkg;moveBackup=new ArrayList<>(favorites);View icon=((LinearLayout)v).getChildAt(0);
         if(icon!=null)icon.animate().translationY(-dp(14)).setDuration(170).setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f)).start();
+    }
+    private void settlePendingSwap(){if(pendingSwap!=null)pendingSwap.run();}
+    private void finishMove(boolean save){
+        String pkg=movingPkg;if(pkg==null)return;settlePendingSwap();movingPkg=null;
+        if(save){consumeCenterUp=true;saveFavorites();}
+        else{favorites.clear();if(moveBackup!=null)favorites.addAll(moveBackup);restoreFocus="fav:"+pkg;renderFavorites();}
+        moveBackup=null;
     }
     /** Slides the two tiles past each other, then commits the new order with no visible jump. */
     void swapTiles(View current,View neighbor){
-        if(pendingSwap!=null)pendingSwap.run();
+        settlePendingSwap();
         final int target=favoriteRow.indexOfChild(neighbor);final float delta=neighbor.getX()-current.getX();
         final Runnable settle=new Runnable(){public void run(){
             if(pendingSwap!=this)return;pendingSwap=null;
@@ -311,8 +318,8 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         int k=e.getKeyCode();if(e.getAction()==KeyEvent.ACTION_DOWN&&backdrop!=null)backdrop.pauseMotionFor(280);if(consumeCenterUp&&e.getAction()==KeyEvent.ACTION_UP&&(k==KeyEvent.KEYCODE_DPAD_CENTER||k==KeyEvent.KEYCODE_ENTER)){consumeCenterUp=false;return true;}
         if(movingPkg!=null){
             if(k==KeyEvent.KEYCODE_DPAD_LEFT||k==KeyEvent.KEYCODE_DPAD_RIGHT){if(e.getAction()==KeyEvent.ACTION_DOWN){int old=favorites.indexOf(movingPkg),next=old+(k==KeyEvent.KEYCODE_DPAD_LEFT?-1:1);if(next>=0&&next<favorites.size()){String other=favorites.get(next);Collections.swap(favorites,old,next);View current=favoriteRow.findViewWithTag("fav:"+movingPkg),neighbor=favoriteRow.findViewWithTag("fav:"+other);if(current!=null&&neighbor!=null){playRemoteSound(k==KeyEvent.KEYCODE_DPAD_LEFT?"left":"right");swapTiles(current,neighbor);}}}return true;}
-            if(k==KeyEvent.KEYCODE_DPAD_CENTER||k==KeyEvent.KEYCODE_ENTER){if(e.getAction()==KeyEvent.ACTION_DOWN&&e.getRepeatCount()==0){movingPkg=null;consumeCenterUp=true;saveFavorites();}return true;}
-            if(k==KeyEvent.KEYCODE_BACK){if(e.getAction()==KeyEvent.ACTION_DOWN){String pkg=movingPkg;movingPkg=null;favorites.clear();favorites.addAll(moveBackup);restoreFocus="fav:"+pkg;renderFavorites();}return true;}
+            if(k==KeyEvent.KEYCODE_DPAD_CENTER||k==KeyEvent.KEYCODE_ENTER){if(e.getAction()==KeyEvent.ACTION_DOWN&&e.getRepeatCount()==0)finishMove(true);return true;}
+            if(k==KeyEvent.KEYCODE_BACK){if(e.getAction()==KeyEvent.ACTION_DOWN)finishMove(false);return true;}
             return true;
         }
         if(k==KeyEvent.KEYCODE_DPAD_LEFT||k==KeyEvent.KEYCODE_DPAD_RIGHT){
@@ -322,7 +329,21 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         if(e.getAction()==KeyEvent.ACTION_DOWN&&(k==KeyEvent.KEYCODE_DPAD_UP||k==KeyEvent.KEYCODE_DPAD_DOWN)&&moveFocusVertically(k==KeyEvent.KEYCODE_DPAD_UP?"up":"down"))return true;
         return super.dispatchKeyEvent(e);
     }
-    private boolean moveFocusVertically(String direction){View current=getCurrentFocus();if(current==null){if(firstApp==null)return false;playRemoteSound(direction);firstApp.requestFocus();selectApp(appsForFirstFavorite());return true;}View next=current.focusSearch("up".equals(direction)?View.FOCUS_UP:View.FOCUS_DOWN);if(next==null||next==current)return false;playRemoteSound(direction);next.requestFocus();if(next.getTag() instanceof String&&((String)next.getTag()).startsWith("fav:"))selectApp(app(((String)next.getTag()).substring(4)));return true;}
+    private View firstFocusable(ViewGroup region){if(region==null||!region.isShown())return null;for(View item:region.getFocusables(View.FOCUS_FORWARD))if(item.isShown())return item;return null;}
+    private View selectedFavorite(){if(selectedPkg!=null){View selected=favoriteRow.findViewWithTag("fav:"+selectedPkg);if(selected!=null)return selected;}return firstApp;}
+    private View topControl(){if(remoteHit!=null&&remoteHit.isShown())return remoteHit;if(libraryButton!=null&&libraryButton.isShown())return libraryButton;return settingsButton;}
+    private boolean moveTo(View next,String direction){if(next==null||next==getCurrentFocus())return false;next.setFocusableInTouchMode(true);playRemoteSound(direction);if(!next.requestFocus()){next.post(next::requestFocus);}if(next.getTag() instanceof String&&((String)next.getTag()).startsWith("fav:"))selectApp(app(((String)next.getTag()).substring(4)));return true;}
+    private boolean moveFocusVertically(String direction){
+        View current=getCurrentFocus();if(current==null)return moveTo(firstApp,direction);
+        boolean up="up".equals(direction);View next=null;
+        if(isInside(current,favoriteRow))next=up?firstFocusable(watchRow):null;
+        else if(isInside(current,watchRow))next=up?topControl():selectedFavorite();
+        else if(current==remoteHit||current==libraryButton||current==settingsButton)next=up?null:firstFocusable(watchRow);
+        if(next==null&&isInside(current,favoriteRow)&&up)next=topControl();
+        if(next==null&&!isInside(current,favoriteRow)&&!isInside(current,watchRow)&&(current==remoteHit||current==libraryButton||current==settingsButton)&&!up)next=selectedFavorite();
+        if(next!=null)return moveTo(next,direction);
+        return moveTo(current.focusSearch(up?View.FOCUS_UP:View.FOCUS_DOWN),direction);
+    }
     boolean isInside(View view,android.view.ViewGroup container){if(view==null||container==null)return false;View current=view;while(current!=null){if(current==container)return true;android.view.ViewParent parent=current.getParent();current=parent instanceof View?(View)parent:null;}return false;}
     void saveFavorites(){prefs.edit().putString("favorites",android.text.TextUtils.join(",",favorites)).apply();renderFavorites();}
     void appOptions(App a,boolean fromFavorite){
@@ -442,8 +463,13 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     }
     String value(android.database.Cursor c,String name){int n=c.getColumnIndex(name);return n<0||c.isNull(n)?"":c.getString(n);}
     long number(android.database.Cursor c,String name){try{return Long.parseLong(value(c,name));}catch(Exception e){return 0;}}
+    boolean visualWatchFixtureEnabled(){return (getApplicationInfo().flags&ApplicationInfo.FLAG_DEBUGGABLE)!=0&&getIntent().getBooleanExtra("visual_watch_fixture",false);}
     void loadWatchNext(){
         if(watchRow==null)return;
+        if(visualWatchFixtureEnabled()){
+            watchGeneration++;WatchItem item=new WatchItem();item.title="Focus regression";item.pkg="space.glidetv.preview.coral";item.intent="intent:#Intent;action=android.intent.action.VIEW;package=space.glidetv.preview.coral;end";item.position=120000;item.duration=180000;item.time=1731974400000L;item.type=1;
+            watchItems.clear();watchItems.add(item);renderSelectedWatch();return;
+        }
         if(checkSelfPermission("android.permission.READ_TV_LISTINGS")!=PackageManager.PERMISSION_GRANTED){watchEmpty("Connect your watch history","Show Continue Watching from supported apps",true);return;}
         final int generation=++watchGeneration;
         worker.execute(()->{

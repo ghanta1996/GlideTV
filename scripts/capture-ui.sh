@@ -68,6 +68,7 @@ adb shell input keyevent KEYCODE_WAKEUP
 adb shell wm dismiss-keyguard
 
 seed_home() {
+  local visual_watch_fixture="${1:-false}"
   adb shell am force-stop "$app_id"
   adb shell run-as "$app_id" mkdir -p shared_prefs
   cat > build/visual-fixtures/home.xml <<'XML'
@@ -80,7 +81,11 @@ seed_home() {
 XML
   adb shell -T "run-as $app_id sh -c 'cat > shared_prefs/home.xml'" < build/visual-fixtures/home.xml
   adb shell pm grant "$app_id" android.permission.READ_TV_LISTINGS || true
-  adb shell am start -W -n "$app_id/.HomeActivity"
+  if [[ "$visual_watch_fixture" == true ]]; then
+    adb shell am start -W --ez visual_watch_fixture true -n "$app_id/.HomeActivity"
+  else
+    adb shell am start -W -n "$app_id/.HomeActivity"
+  fi
   sleep 4
 }
 
@@ -88,6 +93,50 @@ capture() {
   adb exec-out screencap -p > "$output/$1.png"
   adb shell uiautomator dump /sdcard/glide-window.xml >/dev/null
   adb pull /sdcard/glide-window.xml "$output/$1.xml" >/dev/null
+}
+
+assert_focus() {
+  local capture_name="$1" expected="$2"
+  capture "$capture_name"
+  python3 - "$output/$capture_name.xml" "$expected" <<'PY'
+import sys, xml.etree.ElementTree as ET
+tree=ET.parse(sys.argv[1])
+expected=sys.argv[2]
+focused=[node for node in tree.iter('node') if node.get('focused')=='true']
+assert any(expected in (node.get('text','')+' '+node.get('content-desc','')) for node in focused), (expected, [node.attrib for node in focused])
+PY
+}
+
+assert_visible() {
+  local capture_name="$1" expected="$2"
+  capture "$capture_name"
+  python3 - "$output/$capture_name.xml" "$expected" <<'PY'
+import sys, xml.etree.ElementTree as ET
+tree=ET.parse(sys.argv[1])
+expected=sys.argv[2]
+assert any(expected in (node.get('text','')+' '+node.get('content-desc','')) for node in tree.iter('node')), expected
+PY
+}
+
+assert_favorite_order() {
+  local capture_name="$1"
+  shift
+  capture "$capture_name"
+  python3 - "$output/$capture_name.xml" "$@" <<'PY'
+import sys, xml.etree.ElementTree as ET
+tree=ET.parse(sys.argv[1])
+actual=[]
+for node in tree.iter('node'):
+    description=node.get('content-desc','')
+    if ', favorite. Hold OK to move.' in description:
+        actual.append(description.split(', favorite. Hold OK to move.')[0])
+assert actual == sys.argv[2:], (actual, sys.argv[2:])
+PY
+}
+
+press() {
+  adb shell input keyevent "KEYCODE_DPAD_$1"
+  sleep .5
 }
 
 density_for_resolution() {
@@ -136,14 +185,69 @@ adb shell wm size 1920x1080
 adb shell wm density 320
 adb install -r "${VISUAL_HEAD_APK:-build/GlideTV.apk}"
 seed_home
-# A short unedited recording demonstrates color transitions and left/right focus changes.
+# Verify the real focus graph, including boundaries, modal dialogs, and both reorder exits.
+assert_focus "nav-dock-initial" "Coral demo"
+press LEFT
+assert_focus "nav-dock-left-boundary" "Coral demo"
+press UP
+assert_focus "nav-top-remote" "Glide Remote"
+press RIGHT
+assert_focus "nav-top-library" "App library"
+adb shell input keyevent KEYCODE_DPAD_CENTER
+sleep 1
+assert_visible "nav-library-dialog" "App library"
+adb shell input keyevent KEYCODE_BACK
+sleep .5
+press DOWN
+assert_focus "nav-return-to-dock" "Coral demo"
+adb shell input keyevent KEYCODE_MENU
+sleep .5
+assert_visible "nav-app-options-dialog" "Coral demo"
+adb shell input keyevent KEYCODE_BACK
+sleep .5
+press DOWN
+assert_focus "nav-dock-down-boundary" "Coral demo"
+adb shell input keyevent --longpress KEYCODE_DPAD_CENTER
+sleep .4
+press RIGHT
+adb shell input keyevent KEYCODE_BACK
+sleep .5
+assert_favorite_order "nav-reorder-cancel" "Coral demo" "Ocean demo" "Mint demo" "Mono demo"
+assert_focus "nav-reorder-cancel-focus" "Coral demo"
+seed_home
+adb shell input keyevent --longpress KEYCODE_DPAD_CENTER
+sleep .4
+press RIGHT
+adb shell input keyevent KEYCODE_DPAD_CENTER
+sleep .5
+assert_favorite_order "nav-reorder-save" "Ocean demo" "Coral demo" "Mint demo" "Mono demo"
+assert_focus "nav-reorder-save-focus" "Coral demo"
+
+seed_home true
+assert_focus "nav-watch-initial" "Coral demo"
+press UP
+assert_focus "nav-watch-card" "Resume Focus regression"
+press DOWN
+assert_focus "nav-watch-return-to-dock" "Coral demo"
+press UP
+assert_focus "nav-watch-card-return" "Resume Focus regression"
+press UP
+assert_focus "nav-watch-up-to-top" "Glide Remote"
+
+# A short unedited recording demonstrates the vertical top-bar/dock path and a saved reorder.
+seed_home
 adb shell screenrecord --time-limit 12 --bit-rate 4000000 /sdcard/glide-dock.mp4 &
 recording=$!
 sleep 1
-for key in LEFT LEFT LEFT RIGHT RIGHT RIGHT LEFT LEFT LEFT; do
+for key in UP RIGHT DOWN; do
   adb shell input keyevent "KEYCODE_DPAD_$key"
   sleep .8
 done
+adb shell input keyevent --longpress KEYCODE_DPAD_CENTER
+sleep .8
+adb shell input keyevent KEYCODE_DPAD_RIGHT
+sleep .8
+adb shell input keyevent KEYCODE_DPAD_CENTER
 wait "$recording"
 adb pull /sdcard/glide-dock.mp4 "$output/focus-transitions.mp4"
 adb logcat -d -s AndroidRuntime:E > "$output/android-errors.txt"

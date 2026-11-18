@@ -2,6 +2,11 @@
 
 App releases use semantic versions and an increasing Android version code. Scene packs have their own [changelog](scenes/CHANGELOG.md) and can be published independently.
 
+## 4.6.2
+
+- Keep D-pad focus deterministic between the top controls, Continue Watching, and the dock.
+- Finish any in-flight dock swap before saving or cancelling a reorder, so focus and tile order cannot be restored by a stale animation.
+
 ## 4.6.1
 
 - Run the actual Android TV UI capture and D-pad focus checks at 720p, 1080p, and 4K for every pull request.
