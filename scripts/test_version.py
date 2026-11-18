@@ -150,6 +150,18 @@ class VersionPolicy(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'must match versionName'):
             self.check(tag='v4.5.1')
 
+    def test_manual_release_validates_the_requested_tag_not_the_workspace(self):
+        # Rebuilding an older tag runs the current tooling, so the tag itself supplies the head.
+        self.git('tag', '-a', 'v4.5.0', '-m', 'Released version')
+        released = self.git('rev-parse', 'v4.5.0^{commit}')
+        self.write('src/App.java', 'later work')
+        self.bump()
+        self.commit()
+        self.assertEqual(self.check(head='v4.5.0', tag='v4.5.0'),
+                         {'release_needed': 'true', 'tag': 'v4.5.0', 'sha': released})
+        with self.assertRaisesRegex(ValueError, 'must match versionName'):
+            self.check(head='v4.5.0', tag='v4.5.1')
+
     def test_pr_docs_do_not_include_new_code_on_base_branch(self):
         self.git('checkout', '-qb', 'docs')
         self.write('README.md', 'docs')

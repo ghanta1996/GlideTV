@@ -33,7 +33,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.tag || github.event.pull_request.head.sha || github.sha }}
+          # Always validate with the tooling from the dispatched/pushed workflow revision,
+          # so rebuilding an older tag does not depend on that tag carrying these scripts.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Test version policy and scene release invariants
@@ -53,7 +55,7 @@ jobs:
           if [[ "$EVENT_NAME" == pull_request ]]; then
             python3 scripts/check-version.py --base "$BASE_SHA" --pull-request
           elif [[ "$EVENT_NAME" == workflow_dispatch || "$REF_TYPE" == tag ]]; then
-            python3 scripts/check-version.py --tag "$EXPLICIT_TAG"
+            python3 scripts/check-version.py --tag "$EXPLICIT_TAG" --head "$EXPLICIT_TAG"
           else
             python3 scripts/check-version.py --base "$BASE_SHA"
           fi
