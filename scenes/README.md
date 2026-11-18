@@ -15,7 +15,10 @@ Glide keeps artwork outside the APK. Cached scenes work offline. Abu Dhabi has a
 | File | Role |
 | --- | --- |
 | [catalog.json](catalog.json) | Maintainers edit pack definitions here |
-| [index.json](index.json) | CI generates the public catalogue and checksums |
+| [Public catalogue](https://github.com/ghanta1996/GlideTV/releases/download/scene-catalogue/scenes.json) | CI publishes scene metadata and checksums as a release asset |
+| [index.json](index.json) | Legacy snapshot used by app versions through 4.5.0 |
+
+The catalogue asset is updated on the `scene-catalogue` release, which is never marked as the latest app release. Generated data does not write to protected `main`. Upgrade to Glide 4.5.1 or later to receive future catalogue updates; older apps keep using the legacy snapshot and cached scenes.
 
 ## Versions
 
@@ -45,3 +48,4 @@ The APK release workflow can publish the current catalogue along with an app rel
 6. Commit and push a matching `scene-v<catalogVersion>` tag. Actions publishes archives, checksums, release notes, and the generated public index.
 
 No API key is needed for pack downloads. Coordinates are used locally to choose a pack; GitHub receives the catalogue and chosen pack requests, rather than a latitude/longitude query. Weather/geocoding requests go to Open-Meteo, and optional Android reverse geocoding uses the TV's configured geocoder.
+

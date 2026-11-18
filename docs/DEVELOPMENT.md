@@ -34,6 +34,8 @@ Code changes must increase **both** `versionName` (stable `major.minor.patch`) a
 
 Set **Version check** as a required status check in the `main` branch rules to block merges without a version bump. Direct pushes are also checked before a release can publish. Local check: `python3 scripts/check-version.py --base origin/main --pull-request`.
 
+Generated scene metadata is uploaded to the `scene-catalogue` release asset, with `--latest=false`. Publishing needs no commits or bypass permission on protected `main`. The packager uses the legacy index to preserve existing pack hashes when bootstrapping the new endpoint; see the [scene guide](../scenes/README.md).
+
 <details>
 <summary>Release signing and forks</summary>
 

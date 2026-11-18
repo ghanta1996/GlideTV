@@ -13,7 +13,7 @@ import java.util.zip.*;
 
 /** Downloadable, checksummed artwork. Each pack version is cached independently. */
 final class ScenePacks {
-    private static final String CATALOG="https://raw.githubusercontent.com/ghanta1996/GlideTV/main/scenes/index.json";
+    private static final String CATALOG="https://github.com/ghanta1996/GlideTV/releases/download/scene-catalogue/scenes.json";
     private static final String PREFIX="https://github.com/ghanta1996/GlideTV/releases/download/";
     private final Context context;
     private final android.content.SharedPreferences prefs;

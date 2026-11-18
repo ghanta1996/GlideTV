@@ -6,6 +6,7 @@ App releases use semantic versions and an increasing Android version code. Scene
 
 - Signed app releases are published automatically when code changes reach main.
 - Code changes require a higher app version and Android version code, with release notes checked before publishing. Documentation-only updates do not create an app release.
+- Scene catalogues are hosted as release assets so automatic publishing works with protected branches.
 
 ## 4.5.0
 
