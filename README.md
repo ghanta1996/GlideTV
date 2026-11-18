@@ -6,6 +6,10 @@ A clean home for Android TV, with living scenery, your favorite apps, and contro
 
 [Download Glide](https://github.com/ghanta1996/GlideTV/releases/latest) · [Make it your Home](docs/DEFAULT_HOME.md) · [What's new](CHANGELOG.md) · [Release builds](https://github.com/ghanta1996/GlideTV/actions/workflows/release.yml)
 
+**Downloader code: `3583851`** · [Short download link](https://aftv.news/3583851)
+
+Enter **3583851** in the Downloader app to download the latest Glide TV APK.
+
 ![Glide TV home screen, showing the optional Abu Dhabi scene](screenshots/home-abu-dhabi.png)
 
 *An example of Glide with the optional Abu Dhabi Skyline pack. Your location is chosen during setup; this scene is not the default for everyone. Capture cropped above Continue Watching to keep viewing history private.*
@@ -89,13 +93,15 @@ Android may evict Glide while another app is active. Reopen Home and start Remot
 
 ## Share Glide with a Downloader code
 
-Each release publishes this stable APK address:
+**Downloader code: `3583851`** · [aftv.news/3583851](https://aftv.news/3583851)
+
+Enter **3583851** in the Downloader app or Glide's mobile **Apps → Downloader** field. The code points to the stable APK address below, so it follows future releases:
 
 ```text
 https://github.com/ghanta1996/GlideTV/releases/latest/download/GlideTV.apk
 ```
 
-Submit that URL at the [AFTVnews URL Shortener](https://go.aftvnews.com/) and complete its verification to obtain a numeric code. The code can be entered in Downloader or Glide's mobile Downloader field. Use the stable address so future releases keep the same code; AFTVnews does not currently let creators edit a code's destination. No numeric Glide code has been registered by this repository.
+[View the registered code and destination on AFTVnews](https://aftv.news/3583851+).
 
 ## Build and release
 
