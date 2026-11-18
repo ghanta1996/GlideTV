@@ -105,7 +105,7 @@ done
 wait "$recording"
 adb pull /sdcard/glide-dock.mp4 "$output/focus-transitions.mp4"
 adb logcat -d -s AndroidRuntime:E > "$output/android-errors.txt"
-if grep -q 'FATAL EXCEPTION' "$output/android-errors.txt"; then
+if grep -Fq "Process: $app_id, PID:" "$output/android-errors.txt"; then
   cat "$output/android-errors.txt" >&2
   exit 1
 fi
