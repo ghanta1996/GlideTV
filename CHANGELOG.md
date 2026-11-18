@@ -2,6 +2,11 @@
 
 App releases use semantic versions and an increasing Android version code. Scene packs have their own [changelog](scenes/CHANGELOG.md) and can be published independently.
 
+## 4.5.1
+
+- Signed app releases are published automatically when code changes reach main.
+- Code changes require a higher app version and Android version code, with release notes checked before publishing. Documentation-only updates do not create an app release.
+
 ## 4.5.0
 
 - Download APKs directly to the TV from a Downloader code or public HTTPS APK link in the mobile Apps page.

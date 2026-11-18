@@ -17,7 +17,10 @@ jobs:
   scenes:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    concurrency: scene-catalog-publish
+    concurrency:
+      group: scene-catalog-publish
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: write
     env:
