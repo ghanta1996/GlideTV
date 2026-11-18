@@ -53,4 +53,3 @@ Follow the [scene pack guide](scenes/README.md). Include artwork provenance and 
 Disclose substantive AI-generated implementation in the PR description and preserve co-author trailers when squashing. Codex-specific attribution and visual-review requirements are in [AGENTS.md](AGENTS.md). A co-author credit does not require collaborator access.
 
 Maintainers review and merge changes and handle official releases. Development APKs use a different signing key and cannot replace the official app in place. Contributions are provided under the repository's [MIT license](LICENSE); do not submit third-party code or artwork without a compatible license.
-

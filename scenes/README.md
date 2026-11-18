@@ -48,4 +48,3 @@ The APK release workflow can publish the current catalogue along with an app rel
 6. Commit and push a matching `scene-v<catalogVersion>` tag. Actions publishes archives, checksums, release notes, and the generated public index.
 
 No API key is needed for pack downloads. Coordinates are used locally to choose a pack; GitHub receives the catalogue and chosen pack requests, rather than a latitude/longitude query. Weather/geocoding requests go to Open-Meteo, and optional Android reverse geocoding uses the TV's configured geocoder.
-
