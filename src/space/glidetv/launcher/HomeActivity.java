@@ -21,16 +21,17 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     private final ArrayList<App> apps=new ArrayList<>();
     private final ArrayList<String> favorites=new ArrayList<>();
     private final HashMap<String,Drawable> icons=new HashMap<>();
-    private LinearLayout page, favoriteRow, library, watchRow;
-    private TextView watchCount;
+    private LinearLayout page, favoriteRow, library, watchRow, watchSection;
     private final java.util.concurrent.ExecutorService artwork=Executors.newSingleThreadExecutor();
     private final android.util.LruCache<String,Bitmap> artCache=new android.util.LruCache<String,Bitmap>(2*1024*1024){protected int sizeOf(String k,Bitmap b){return b.getByteCount();}};
     private final android.database.ContentObserver watchChanges=new android.database.ContentObserver(handler){public void onChange(boolean self){if(active)loadWatchNext();}};
     private int watchGeneration=0;
     private HorizontalScrollView appStrip, watchStrip;
-    private DockDrawable dockGlass;
-    private android.animation.ValueAnimator dockTint;
-    private int dockColor=IconPalette.NEUTRAL;
+    private FrameLayout watchBubble;
+    private SpeechBubble watchBalloon;
+    private float tailCentre;
+    private android.animation.ValueAnimator dockMagnify;
+    private int dockCentre=-1;
     private UsageMeters meters;
     private ConnectivityStatus connectivity;
     private RemoteControlServer mobileControl;
@@ -44,28 +45,68 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     private Atmosphere backdrop;
     private int weatherCode=0;
     private boolean weatherIsDay=true;
-    private TextView watchTitle, weather, weatherDetail, weatherSymbol, weatherStats, weatherRain;
+    private TextView weather, weatherDetail, weatherSymbol, weatherStats, weatherRain;
     private final Runnable trimIdle=()->worker.execute(()->System.gc());
     private String selectedPkg, watchFingerprint="", renderedWatchKey="";
     private final ArrayList<WatchHolder> watchPool=new ArrayList<>();
-    private LinearLayout emptyWatch;private TextView emptyWatchTitle;
     private final ArrayList<WatchItem> watchItems=new ArrayList<>();
     private AlertDialog libraryDialog;
     private AlertDialog mobileDialog;
     private String weatherCity="Your location";
     private long weatherFetched;
     private final Runnable selectWatch=()->renderSelectedWatch();
-    private TextView clock, date, count;
+    /** Continue Watching stays out of the way until Home has been on screen for a moment. */
+    private static final long WATCH_DWELL=3000;
+    private final Runnable revealWatch=new Runnable(){public void run(){
+        if(watchSection==null||watchRevealed||!active)return;watchRevealed=true;
+        View focus=favoriteRow==null?null:favoriteRow.findFocus();if(focus==null)return;
+        pointTail(focus);bubbleIn();
+    }};
+    /** Pops the thought out of the icon it belongs to. */
+    void bubbleIn(){
+        if(watchSection==null||!watchRevealed||!watchHasItems)return;
+        if(watchSection.getVisibility()==View.VISIBLE&&watchSection.getAlpha()>.99f)return;
+        watchSection.animate().cancel();watchSection.setVisibility(View.VISIBLE);
+        watchSection.setPivotX(tailCentre);watchSection.setPivotY(watchSection.getHeight());
+        watchSection.setScaleX(.84f);watchSection.setScaleY(.84f);watchSection.setTranslationY(dp(16));
+        watchSection.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0).setStartDelay(130).setDuration(540)
+            .setInterpolator(new android.view.animation.PathInterpolator(.22f,1.2f,.36f,1f)).start();
+    }
+    void bubbleOut(){
+        if(watchSection==null||watchSection.getVisibility()!=View.VISIBLE)return;
+        watchSection.animate().cancel();watchSection.setPivotX(tailCentre);watchSection.setPivotY(watchSection.getHeight());
+        watchSection.animate().alpha(0f).scaleX(.84f).scaleY(.84f).setStartDelay(0).setDuration(330).withEndAction(()->watchSection.setVisibility(View.INVISIBLE)).start();
+    }
+    void hideWatch(){if(watchSection==null)return;watchRevealed=false;watchSection.animate().cancel();watchSection.setAlpha(0f);watchSection.setScaleX(1f);watchSection.setScaleY(1f);watchSection.setTranslationY(0);watchSection.setVisibility(View.INVISIBLE);}
+    private TextView clock, date;
     private View firstApp;
-    private boolean loaded=false, active=false, loading=false;
+    private boolean loaded=false, active=false, loading=false, watchRevealed=false, watchHasItems=false;
     private String restoreFocus, movingPkg;
     private ArrayList<String> moveBackup;
+    private Runnable pendingSwap;
     private boolean consumeCenterUp;
     private android.content.SharedPreferences prefs;
     private static final String STOCK="com.google.android.apps.tv.launcherx";
+    private static final int CARD_W=174, CARD_H=102, CARD_GAP=13, TITLE_GAP=7, TITLE_LINE=14,
+            STRIP_PAD=5, BUBBLE_PAD_V=21, BUBBLE_PAD_H=20, PAGE_PAD=40;
+    /** Strip height follows the card: artwork, the gap, then one line of title. */
+    private int stripHeight(){return CARD_H+TITLE_GAP+TITLE_LINE+STRIP_PAD*2;}
+    /**
+     * The balloon is a stadium, so its ends curve away over the cards' top corners. Side padding
+     * has to clear that curve or the first and last card poke out of the glass.
+     */
+    private int bubbleSidePad(){
+        float r=(stripHeight()+BUBBLE_PAD_V*2)*.5f, dy=r-BUBBLE_PAD_V-STRIP_PAD;
+        return Math.max(BUBBLE_PAD_H,(int)Math.ceil(r-Math.sqrt(Math.max(0,r*r-dy*dy)))+2);
+    }
+    /** How many whole cards fit between the cleared edges; a part card would be cut by the curve. */
+    private int watchFit(){
+        int screen=Math.round(getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density);
+        return Math.max(1,(screen-PAGE_PAD*2-bubbleSidePad()*2+CARD_GAP)/(CARD_W+CARD_GAP));
+    }
     private static class App {
-        String pkg,label; Intent intent; Drawable icon,banner; int accent;
-        App(String p,String l,Intent i,Drawable d,Drawable b,int c){pkg=p;label=l;intent=i;icon=d;banner=b;accent=c;}
+        String pkg,label; Intent intent; Drawable icon; int accent;
+        App(String p,String l,Intent i,Drawable d,int c){pkg=p;label=l;intent=i;icon=d;accent=c;}
     }
     private final Runnable ticker=new Runnable(){public void run(){
         if(clock!=null){Date now=new Date();clock.setText(localTime("h:mm",now));date.setText(localTime("EEEE, d MMMM",now));}
@@ -83,10 +124,11 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         appUpdater=new AppUpdater(this);appUpdater.setAvailabilityChanged(()->{String version=appUpdater.availableVersion();updateNotice.setText(version==null?"":"↑  Glide "+version+" available");updateNotice.setVisibility(version==null?View.GONE:View.VISIBLE);});
         IntentFilter filter=new IntentFilter();filter.addAction(Intent.ACTION_PACKAGE_ADDED);filter.addAction(Intent.ACTION_PACKAGE_REMOVED);filter.addAction(Intent.ACTION_PACKAGE_CHANGED);filter.addDataScheme("package");registerReceiver(changes,filter,Context.RECEIVER_EXPORTED);
         getContentResolver().registerContentObserver(android.net.Uri.parse("content://android.media.tv/watch_next_program"),true,watchChanges);
+        getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((lost,gained)->{if(!isInside(gained,favoriteRow)&&!isInside(gained,watchRow))bubbleOut();});
         loadApps();
     }
-    @Override public void onResume(){super.onResume();active=true;if(appUpdater!=null)appUpdater.onResume();weatherLocation.onResume();handler.removeCallbacks(ticker);ticker.run();meters.start();connectivity.start();if(weatherLocation.configured()&&!prefs.getBoolean("connection_permissions_prompted",false)){prefs.edit().putBoolean("connection_permissions_prompted",true).apply();connectivity.requestInitialStatusPermissions(43);}backdrop.setRunning(true);if(!loaded)loadApps();loadWatchNext();refreshWeather();maybeSetupLocation();}
-    @Override public void onPause(){super.onPause();active=false;if(dockTint!=null)dockTint.end();handler.removeCallbacks(ticker);meters.stop();connectivity.stop();backdrop.setRunning(false);}
+    @Override public void onResume(){super.onResume();active=true;if(appUpdater!=null)appUpdater.onResume();weatherLocation.onResume();handler.removeCallbacks(ticker);ticker.run();meters.start();connectivity.start();if(weatherLocation.configured()&&!prefs.getBoolean("connection_permissions_prompted",false)){prefs.edit().putBoolean("connection_permissions_prompted",true).apply();connectivity.requestInitialStatusPermissions(43);}backdrop.setRunning(true);if(!loaded)loadApps();hideWatch();handler.removeCallbacks(revealWatch);handler.postDelayed(revealWatch,WATCH_DWELL);loadWatchNext();refreshWeather();maybeSetupLocation();}
+    @Override public void onPause(){super.onPause();active=false;handler.removeCallbacks(revealWatch);hideWatch();if(dockMagnify!=null)dockMagnify.end();handler.removeCallbacks(ticker);meters.stop();connectivity.stop();backdrop.setRunning(false);}
     @Override public void onDestroy(){super.onDestroy();if(appUpdater!=null)appUpdater.close();weatherLocation.close();scenePacks.close();handler.removeCallbacksAndMessages(null);unregisterReceiver(changes);backdrop.dispose();getContentResolver().unregisterContentObserver(watchChanges);if(mobileControl!=null)mobileControl.stop();worker.shutdownNow();artwork.shutdownNow();}
     @Override public void onBackPressed(){if(firstApp!=null)firstApp.requestFocus();}
     @Override protected void onNewIntent(Intent i){super.onNewIntent(i);if(firstApp!=null)firstApp.requestFocus();}
@@ -108,6 +150,27 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     View remoteShortcut(){LinearLayout hit=row();remoteHit=hit;hit.setGravity(Gravity.CENTER);hit.setPadding(dp(9),0,dp(9),0);hit.setBackground(new GlassDrawable(dp(18),false));RemoteGlyph glyph=new RemoteGlyph(this);remoteGlyph=glyph;hit.addView(glyph,new LinearLayout.LayoutParams(dp(21),dp(27)));TextView label=text("Remote",12,0xffdce8f1);remoteLabel=label;label.setSingleLine(true);label.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,-2);lp.setMarginStart(dp(6));hit.addView(label,lp);hit.setFocusable(true);hit.setClickable(true);hit.setContentDescription("Glide Remote · show mobile pairing code");hit.setOnClickListener(v->showMobileControl());hit.setOnFocusChangeListener((v,focused)->{int color=remoteActive?0xff65df9b:focused?mint:0xffdce8f1;glyph.setColor(color);label.setTextColor(color);hit.setBackground(new GlassDrawable(dp(18),focused||remoteActive));v.animate().cancel();v.animate().scaleX(focused?1.05f:1f).scaleY(focused?1.05f:1f).setDuration(140).start();});return hit;}
     private void setRemoteActive(boolean value){remoteActive=value;if(remoteGlyph!=null){int color=value?0xff65df9b:0xffdce8f1;remoteGlyph.setColor(color);remoteLabel.setText(value?"Active":"Remote");remoteLabel.setTextColor(color);remoteHit.setBackground(new GlassDrawable(dp(18),value));remoteHit.setContentDescription(value?"Glide Remote · connected and active":"Glide Remote · show mobile pairing code");}}
     private final class RemoteGlyph extends View{private final android.graphics.Paint p=new android.graphics.Paint(3);private int color=0xffdce8f1;RemoteGlyph(Context c){super(c);}void setColor(int value){color=value;invalidate();}@Override protected void onDraw(Canvas c){float s=getResources().getDisplayMetrics().density,w=getWidth(),h=getHeight(),x=w*.5f,y=h*.51f;p.setColor(color);p.setStyle(android.graphics.Paint.Style.STROKE);p.setStrokeWidth(1.7f*s);p.setStrokeCap(android.graphics.Paint.Cap.ROUND);p.setStrokeJoin(android.graphics.Paint.Join.ROUND);c.drawRoundRect(w*.17f,h*.025f,w*.83f,h*.975f,6*s,6*s,p);c.drawLine(x,h*.12f,x,h*.22f,p);c.drawCircle(x,h*.29f,1.5f*s,p);c.drawCircle(x,y,6.7f*s,p);c.drawLine(x,y-3.3f*s,x,y+3.3f*s,p);c.drawLine(x-3.3f*s,y,x+3.3f*s,y,p);p.setStyle(android.graphics.Paint.Style.FILL);c.drawCircle(x-3.2f*s,h*.83f,1.25f*s,p);c.drawCircle(x+3.2f*s,h*.83f,1.25f*s,p);}}
+    /** Centres the balloon on the dock icon it belongs to and puts the horn's point on that icon. */
+    void pointTail(View item){
+        if(watchBubble==null||item==null)return;
+        if(watchBubble.getWidth()==0||item.getWidth()==0||favoriteRow.getWidth()==0){watchBubble.post(()->pointTail(item));return;}
+        // Measure from layout, never getLocationOnScreen: the tile carries the magnification's
+        // translationX and the section carries the pop's scale, both of which would skew the aim.
+        int[] rowAt=new int[2],pageAt=new int[2];favoriteRow.getLocationOnScreen(rowAt);page.getLocationOnScreen(pageAt);
+        tailCentre=rowAt[0]+item.getLeft()+item.getWidth()*.5f-pageAt[0]-watchSection.getLeft();
+        placeBubble(watchSection.getVisibility()==View.VISIBLE);
+    }
+    void placeBubble(boolean animate){
+        if(watchBubble==null||watchBubble.getWidth()==0||watchSection.getWidth()==0)return;
+        float room=Math.max(0,watchSection.getWidth()-watchBubble.getWidth());
+        float offset=Math.max(0,Math.min(room,tailCentre-watchBubble.getWidth()*.5f));
+        watchBalloon.setTail(tailCentre-offset);
+        watchBubble.animate().cancel();
+        if(animate)watchBubble.animate().translationX(offset).setDuration(220).setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f)).start();
+        else watchBubble.setTranslationX(offset);
+    }
+    /** Re-aims once a new set of titles has been measured. */
+    void reaimBubble(){if(watchSection==null||favoriteRow==null)return;watchSection.post(()->{View focus=favoriteRow.findFocus();if(focus==null)return;pointTail(focus);bubbleIn();});}
     void buildShell(){
         getWindow().setBackgroundDrawable(new ColorDrawable(0xff090f21));
         FrameLayout root=new FrameLayout(this);backdrop=new Atmosphere(this);root.addView(backdrop,new FrameLayout.LayoutParams(-1,-1));
@@ -117,15 +180,18 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         LinearLayout hero=row();LinearLayout time=column();clock=text("",56,ink);clock.setTypeface(android.graphics.Typeface.create("sans-serif-light",0));date=text("",15,Color.WHITE);time.addView(clock);gap(time,3);time.addView(date);hero.addView(time,new LinearLayout.LayoutParams(dp(235),-2));
         weatherSymbol=text("◌",43,0xffffd695);hero.addView(weatherSymbol);LinearLayout weatherBox=column();weatherBox.setGravity(Gravity.START);weather=text("Set your location",28,ink);weatherDetail=text("Loading weather…",14,Color.WHITE);weatherBox.addView(weather);gap(weatherBox,5);weatherBox.addView(weatherDetail);gap(weatherBox,5);weatherStats=text("",13,Color.WHITE);weatherRain=text("",13,Color.WHITE);weatherBox.addView(weatherStats);gap(weatherBox,4);weatherBox.addView(weatherRain);for(TextView detail:new TextView[]{date,weatherDetail,weatherStats,weatherRain})detail.setShadowLayer(dp(.7f),0,dp(.5f),0x90000b19);LinearLayout.LayoutParams wp=new LinearLayout.LayoutParams(dp(420),-2);wp.setMarginStart(dp(16));hero.addView(weatherBox,wp);page.addView(hero,new LinearLayout.LayoutParams(-1,dp(110)));gap(page,13);
         page.addView(new View(this),new LinearLayout.LayoutParams(1,0,1));
-        count=text("",10,0xffb4c4dc);count.setGravity(Gravity.END);page.addView(count,new LinearLayout.LayoutParams(-1,dp(16)));gap(page,6);
-        FrameLayout dockHost=new FrameLayout(this);dockHost.setClipChildren(false);dockHost.setClipToPadding(false);
-        appStrip=new HorizontalScrollView(this);appStrip.setHorizontalScrollBarEnabled(false);appStrip.setClipToPadding(false);appStrip.setClipChildren(false);appStrip.setPadding(dp(12),dp(10),dp(12),dp(10));appStrip.setOverScrollMode(View.OVER_SCROLL_NEVER);appStrip.setSmoothScrollingEnabled(true);
-        dockGlass=new DockDrawable(dp(28),false);appStrip.setBackground(dockGlass);
-        favoriteRow=row();favoriteRow.setClipChildren(false);favoriteRow.setClipToPadding(false);appStrip.addView(favoriteRow);
-        dockHost.addView(appStrip,new FrameLayout.LayoutParams(-2,-1,Gravity.CENTER_HORIZONTAL));page.addView(dockHost,new LinearLayout.LayoutParams(-1,dp(116)));gap(page,17);
-        LinearLayout wh=row();watchTitle=text("Continue watching",17,ink);watchTitle.setTypeface(null,1);wh.addView(watchTitle,new LinearLayout.LayoutParams(0,-2,1));watchCount=text("",10,0xffb4c4dc);wh.addView(watchCount);page.addView(wh,new LinearLayout.LayoutParams(-1,dp(20)));gap(page,7);
-        watchStrip=new HorizontalScrollView(this);watchStrip.setHorizontalScrollBarEnabled(false);watchStrip.setClipChildren(false);watchStrip.setClipToPadding(false);watchStrip.setPadding(dp(4),dp(4),dp(4),dp(4));watchStrip.setOverScrollMode(View.OVER_SCROLL_NEVER);watchStrip.setSmoothScrollingEnabled(true);watchRow=row();watchRow.setClipChildren(false);watchStrip.addView(watchRow);page.addView(watchStrip,new LinearLayout.LayoutParams(-1,dp(132)));
-        updateNotice=button("",()->appUpdater.showAvailable());updateNotice.setVisibility(View.GONE);updateNotice.setTextColor(mint);updateNotice.setContentDescription("Glide update available. Select to review and install.");FrameLayout.LayoutParams noticeLp=new FrameLayout.LayoutParams(-2,dp(34),Gravity.BOTTOM|Gravity.END);noticeLp.setMargins(0,0,dp(40),dp(12));root.addView(updateNotice,noticeLp);
+        watchSection=column();watchSection.setClipChildren(false);watchSection.setClipToPadding(false);
+        FrameLayout bubble=new FrameLayout(this);watchBubble=bubble;watchBalloon=new SpeechBubble(dp(28));bubble.setBackground(watchBalloon);
+        bubble.setPadding(dp(bubbleSidePad()),dp(BUBBLE_PAD_V),dp(bubbleSidePad()),dp(BUBBLE_PAD_V)+dp(28));bubble.setClipChildren(false);bubble.setClipToPadding(false);
+        watchStrip=new HorizontalScrollView(this);watchStrip.setHorizontalScrollBarEnabled(false);watchStrip.setClipChildren(true);watchStrip.setClipToPadding(false);watchStrip.setPadding(0,dp(STRIP_PAD),0,dp(STRIP_PAD));watchStrip.setOverScrollMode(View.OVER_SCROLL_NEVER);watchStrip.setSmoothScrollingEnabled(true);watchRow=row();watchRow.setClipChildren(false);watchRow.setClipToPadding(false);watchStrip.addView(watchRow);
+        bubble.addView(watchStrip,new FrameLayout.LayoutParams(-2,dp(stripHeight())));bubble.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{if(r-l!=or-ol)placeBubble(false);});watchSection.addView(bubble,new LinearLayout.LayoutParams(-2,-2));
+        watchSection.setAlpha(0f);watchSection.setVisibility(View.INVISIBLE);page.addView(watchSection,new LinearLayout.LayoutParams(-1,-2));gap(page,14);
+                FrameLayout dockHost=new FrameLayout(this);dockHost.setClipChildren(false);dockHost.setClipToPadding(false);
+        appStrip=new HorizontalScrollView(this);appStrip.setHorizontalScrollBarEnabled(false);appStrip.setClipToPadding(false);appStrip.setClipChildren(false);appStrip.setPadding(dp(20),dp(19),dp(20),dp(7));appStrip.setOverScrollMode(View.OVER_SCROLL_NEVER);appStrip.setSmoothScrollingEnabled(true);
+        appStrip.setBackground(new DockDrawable(dp(32),false));
+        favoriteRow=row();favoriteRow.setGravity(Gravity.BOTTOM);favoriteRow.setClipChildren(false);favoriteRow.setClipToPadding(false);appStrip.addView(favoriteRow);
+        dockHost.addView(appStrip,new FrameLayout.LayoutParams(-2,-1,Gravity.CENTER_HORIZONTAL|Gravity.BOTTOM));page.addView(dockHost,new LinearLayout.LayoutParams(-1,dp(125)));
+                updateNotice=button("",()->appUpdater.showAvailable());updateNotice.setVisibility(View.GONE);updateNotice.setTextColor(mint);updateNotice.setContentDescription("Glide update available. Select to review and install.");FrameLayout.LayoutParams noticeLp=new FrameLayout.LayoutParams(-2,dp(34),Gravity.BOTTOM|Gravity.END);noticeLp.setMargins(0,0,dp(40),dp(12));root.addView(updateNotice,noticeLp);
         library=column();
     }
     void showLibrary(){
@@ -153,10 +219,9 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
                     if(bmp==null){Drawable raw=r.loadIcon(pm);int edge=dp(favorites.contains(pkg)?76:48);bmp=Bitmap.createBitmap(edge,edge,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(bmp);raw.setBounds(0,0,edge,edge);raw.draw(canvas);try(java.io.FileOutputStream out=new java.io.FileOutputStream(file)){bmp.compress(Bitmap.CompressFormat.PNG,100,out);}}
                     icon=new BitmapDrawable(getResources(),bmp);icons.put(pkg,icon);
                 }catch(Exception ignored){}}
-                Drawable banner=null;int accent=IconPalette.NEUTRAL;
-                try{Drawable raw=r.activityInfo.loadBanner(pm);if(raw==null)raw=pm.getApplicationBanner(pkg);if(raw!=null){Bitmap bmp=Bitmap.createBitmap(256,144,Bitmap.Config.ARGB_8888);raw.setBounds(0,0,256,144);raw.draw(new Canvas(bmp));banner=new BitmapDrawable(getResources(),bmp);}}catch(Exception ignored){}
+                int accent=IconPalette.NEUTRAL;
                 if(icon instanceof BitmapDrawable){Bitmap source=((BitmapDrawable)icon).getBitmap();Bitmap sample=Bitmap.createScaledBitmap(source,32,32,true);int[] pixels=new int[1024];sample.getPixels(pixels,0,32,0,0,32,32);accent=IconPalette.fromPixels(pixels);if(sample!=source)sample.recycle();}
-                found.add(new App(pkg,label,i,icon,banner,accent));
+                found.add(new App(pkg,label,i,icon,accent));
             }
             Collections.sort(found,(a,b)->a.label.compareToIgnoreCase(b.label));
             handler.post(()->{loading=false;if(isDestroyed())return;apps.clear();apps.addAll(found);if(!prefs.contains("favorites")){for(int n=0;n<Math.min(6,apps.size());n++)favorites.add(apps.get(n).pkg);prefs.edit().putString("favorites",String.join(",",favorites)).apply();}loaded=true;updateApps();});
@@ -164,38 +229,88 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     }
     App app(String p){for(App a:apps)if(a.pkg.equals(p))return a;return null;}
     void updateApps(){
-        count.setText(apps.size()+" apps in your library");renderFavorites();
+        renderFavorites();
     }
     void renderFavorites(){
         View old=getCurrentFocus();String focus=restoreFocus!=null?restoreFocus:old!=null&&old.getTag() instanceof String?(String)old.getTag():null;restoreFocus=null;
         favoriteRow.removeAllViews();firstApp=null;
-        for(String p:favorites){App a=app(p);if(a==null)continue;View item=tile(a,true);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(146),dp(96));favoriteRow.addView(item,lp);if(firstApp==null)firstApp=item;}
-        if(firstApp==null){selectedPkg=null;tintDock(IconPalette.NEUTRAL);favoriteRow.addView(button("Choose favorites",()->showLibrary()));}
+        dockCentre=-1;for(String p:favorites){App a=app(p);if(a==null)continue;View item=tile(a,true);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(112),dp(99));favoriteRow.addView(item,lp);if(firstApp==null)firstApp=item;}
+        if(firstApp==null){selectedPkg=null;favoriteRow.addView(button("Choose favorites",()->showLibrary()));}
         View target=focus==null?null:favoriteRow.findViewWithTag(focus);if(target!=null)target.requestFocus();else if(firstApp!=null){firstApp.requestFocus();selectApp(appsForFirstFavorite());}
     }
     App appsForFirstFavorite(){for(String p:favorites){App a=app(p);if(a!=null)return a;}return null;}
-    void selectApp(App a){if(a==null)return;tintDock(a.accent);if(a.pkg.equals(selectedPkg))return;selectedPkg=a.pkg;handler.removeCallbacks(selectWatch);handler.postDelayed(selectWatch,16);}
-    void tintDock(int color){
-        if(dockGlass==null)return;if(dockTint!=null)dockTint.cancel();
-        if(dockColor==color){dockGlass.setAccent(color,true);return;}
-        dockTint=android.animation.ValueAnimator.ofArgb(dockColor,color);dockTint.setDuration(260);
-        dockTint.addUpdateListener(animation->{dockColor=(Integer)animation.getAnimatedValue();dockGlass.setAccent(dockColor,true);});dockTint.start();
+    /** Dock magnification: the focused icon grows and its neighbours step aside so nothing overlaps. */
+    void magnifyDock(View focused){
+        if(favoriteRow==null)return;
+        int centre=focused==null?-1:favoriteRow.indexOfChild(focused);if(centre==dockCentre)return;dockCentre=centre;
+        final int total=favoriteRow.getChildCount();final View[] icons=new View[total];
+        final float[] fromScale=new float[total],toScale=new float[total],fromShift=new float[total],toShift=new float[total];
+        float half=dp(80)*.5f,slot=dp(112),gap=dp(21);
+        for(int n=0;n<total;n++){
+            View child=favoriteRow.getChildAt(n);if(!(child instanceof LinearLayout))continue;
+            icons[n]=((LinearLayout)child).getChildAt(0);if(icons[n]==null)continue;
+            int distance=centre<0?9:Math.abs(n-centre);
+            toScale[n]=distance==0?1.46f:1f;
+            fromScale[n]=icons[n].getScaleX()<=0?1f:icons[n].getScaleX();
+            fromShift[n]=icons[n].getTranslationX();
+        }
+        for(int n=centre+1;n>0&&n<total;n++)toShift[n]=toShift[n-1]+Math.max(0,gap+half*(toScale[n-1]+toScale[n])-slot);
+        for(int n=centre-1;n>=0;n--)toShift[n]=toShift[n+1]-Math.max(0,gap+half*(toScale[n+1]+toScale[n])-slot);
+        if(dockMagnify!=null)dockMagnify.cancel();
+        dockMagnify=android.animation.ValueAnimator.ofFloat(0,1);dockMagnify.setDuration(580);
+        dockMagnify.setInterpolator(new android.view.animation.PathInterpolator(.19f,1f,.3f,1f));
+        dockMagnify.addUpdateListener(a->{float t=(Float)a.getAnimatedValue();
+            for(int n=0;n<total;n++){
+                View icon=icons[n];if(icon==null)continue;
+                float scale=fromScale[n]+(toScale[n]-fromScale[n])*t;
+                icon.setPivotX(icon.getWidth()*.5f);icon.setPivotY(icon.getHeight());
+                icon.setScaleX(scale);icon.setScaleY(scale);
+                icon.setTranslationX(fromShift[n]+(toShift[n]-fromShift[n])*t);
+            }});
+        dockMagnify.start();
     }
+    void selectApp(App a){if(a==null)return;if(a.pkg.equals(selectedPkg)){bubbleIn();return;}selectedPkg=a.pkg;bubbleOut();handler.removeCallbacks(selectWatch);handler.postDelayed(selectWatch,16);}
     View tile(App a,boolean favorite){
-        LinearLayout item=column();item.setGravity(Gravity.CENTER);item.setClipChildren(false);item.setClipToPadding(false);item.setPadding(dp(5),dp(4),dp(5),dp(4));item.setTag((favorite?"fav:":"app:")+a.pkg);item.setContentDescription(a.label+(favorite?", favorite. Hold OK to move.":". Hold OK to pin."));
-        FrameLayout halo=new FrameLayout(this);halo.setPadding(dp(4),dp(4),dp(4),dp(4));ImageView logo=new ImageView(this);logo.setImageDrawable(favorite&&a.banner!=null?a.banner:a.pkg.equals("com.netflix.ninja")?new NetflixIcon():a.icon);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);logo.setBackgroundColor(0xff090d14);logo.setPadding(dp(favorite&&a.banner==null?15:0),dp(favorite&&a.banner==null?7:0),dp(favorite&&a.banner==null?15:0),dp(favorite&&a.banner==null?7:0));logo.setClipToOutline(true);logo.setOutlineProvider(new ViewOutlineProvider(){public void getOutline(View v,android.graphics.Outline o){o.setRoundRect(0,0,v.getWidth(),v.getHeight(),dp(12));}});halo.addView(logo,new FrameLayout.LayoutParams(-1,-1));item.addView(halo,new LinearLayout.LayoutParams(dp(favorite?132:70),dp(favorite?76:70)));gap(item,favorite?0:8);
-        TextView name=text(a.label,11,ink);name.setSingleLine(true);name.setEllipsize(android.text.TextUtils.TruncateAt.END);name.setGravity(Gravity.CENTER);item.addView(name,new LinearLayout.LayoutParams(-1,-2));item.setFocusable(true);item.setClickable(true);
-        if(favorite)name.setVisibility(View.GONE);
-        DockDrawable cardGlass=new DockDrawable(dp(16),true);cardGlass.setAccent(a.accent,false);halo.setBackground(cardGlass);
-        item.setOnFocusChangeListener((v,f)->{cardGlass.setAccent(a.accent,f);halo.animate().cancel();float scale=f?(favorite?1.08f:1.16f):1f;halo.animate().scaleX(scale).scaleY(scale).setDuration(180).setInterpolator(new android.view.animation.DecelerateInterpolator(1.4f)).start();if(f&&favorite){selectApp(a);count.setText(a.label+"  ·  Hold OK to move  ·  Menu for options");}name.setTextColor(f?Color.WHITE:0xffcbd7e9);});
+        LinearLayout item=column();item.setGravity(Gravity.CENTER_HORIZONTAL);item.setClipChildren(false);item.setClipToPadding(false);item.setPadding(dp(5),dp(4),dp(5),favorite?0:dp(4));item.setTag((favorite?"fav:":"app:")+a.pkg);item.setContentDescription(a.label+(favorite?", favorite. Hold OK to move.":". Hold OK to pin."));
+        FrameLayout halo=new FrameLayout(this);ImageView logo=new ImageView(this);logo.setImageDrawable(a.pkg.equals("com.netflix.ninja")?new NetflixIcon():a.icon);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);logo.setClipToOutline(true);logo.setOutlineProvider(new ViewOutlineProvider(){public void getOutline(View v,android.graphics.Outline o){o.setRoundRect(0,0,v.getWidth(),v.getHeight(),dp(favorite?18:12));}});
+        DockDrawable cardGlass=new DockDrawable(dp(16),true);
+        if(!favorite){halo.setPadding(dp(4),dp(4),dp(4),dp(4));logo.setBackgroundColor(0xff090d14);halo.setBackground(cardGlass);}
+        halo.addView(logo,new FrameLayout.LayoutParams(-1,-1));item.addView(halo,new LinearLayout.LayoutParams(dp(favorite?80:70),dp(favorite?80:70)));
+        TextView name=text(a.label,11,ink);name.setSingleLine(true);name.setEllipsize(android.text.TextUtils.TruncateAt.END);name.setGravity(Gravity.CENTER);
+        View dot=new View(this);
+        if(favorite){GradientDrawable mark=new GradientDrawable();mark.setShape(GradientDrawable.OVAL);mark.setColor(0xd8e8eef7);dot.setBackground(mark);dot.setAlpha(0f);gap(item,10);item.addView(dot,new LinearLayout.LayoutParams(dp(5),dp(5)));}
+        else{gap(item,8);item.addView(name,new LinearLayout.LayoutParams(-1,-2));}
+        item.setFocusable(true);item.setClickable(true);
+        item.setOnFocusChangeListener((v,f)->{
+            if(favorite){dot.animate().cancel();dot.animate().alpha(f?1f:0f).setDuration(160).start();
+                if(f){selectApp(a);magnifyDock(v);pointTail(v);}else v.post(()->{if(favoriteRow.findFocus()==null)magnifyDock(null);});}
+            else{cardGlass.setFocused(f);halo.animate().cancel();halo.animate().scaleX(f?1.16f:1f).scaleY(f?1.16f:1f).setDuration(180).setInterpolator(new android.view.animation.DecelerateInterpolator(1.4f)).start();name.setTextColor(f?Color.WHITE:0xffcbd7e9);}});
         item.setOnClickListener(v->{if(!favorite&&libraryDialog!=null)libraryDialog.dismiss();open(a.intent);});item.setOnLongClickListener(v->{if(favorite)startMove(a);else appOptions(a,false);return true;});
-        item.setOnKeyListener((v,k,e)->{if(k==KeyEvent.KEYCODE_MENU&&e.getAction()==KeyEvent.ACTION_DOWN){appOptions(a,favorite);return true;}return false;});return item;
+        item.setOnKeyListener((v,k,e)->{if(k==KeyEvent.KEYCODE_MENU&&e.getAction()==KeyEvent.ACTION_DOWN){appOptions(a,favorite);return true;}return false;});
+        return item;
     }
-    void startMove(App a){movingPkg=a.pkg;moveBackup=new ArrayList<>(favorites);View v=favoriteRow.findViewWithTag("fav:"+a.pkg);if(v!=null)v.setAlpha(.65f);}
+    void startMove(App a){
+        movingPkg=a.pkg;moveBackup=new ArrayList<>(favorites);View v=favoriteRow.findViewWithTag("fav:"+a.pkg);
+        if(!(v instanceof LinearLayout))return;View icon=((LinearLayout)v).getChildAt(0);
+        if(icon!=null)icon.animate().translationY(-dp(14)).setDuration(170).setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f)).start();
+    }
+    /** Slides the two tiles past each other, then commits the new order with no visible jump. */
+    void swapTiles(View current,View neighbor){
+        if(pendingSwap!=null)pendingSwap.run();
+        final int target=favoriteRow.indexOfChild(neighbor);final float delta=neighbor.getX()-current.getX();
+        final Runnable settle=new Runnable(){public void run(){
+            if(pendingSwap!=this)return;pendingSwap=null;
+            current.animate().cancel();neighbor.animate().cancel();current.setTranslationX(0);neighbor.setTranslationX(0);
+            favoriteRow.removeView(current);favoriteRow.addView(current,target);dockCentre=-1;current.requestFocus();
+        }};
+        pendingSwap=settle;
+        neighbor.animate().translationX(-delta).setDuration(165).setInterpolator(new android.view.animation.DecelerateInterpolator(1.4f)).start();
+        current.animate().translationX(delta).setDuration(165).setInterpolator(new android.view.animation.DecelerateInterpolator(1.4f)).withEndAction(settle).start();
+    }
     @Override public boolean dispatchKeyEvent(KeyEvent e){
         int k=e.getKeyCode();if(e.getAction()==KeyEvent.ACTION_DOWN&&backdrop!=null)backdrop.pauseMotionFor(280);if(consumeCenterUp&&e.getAction()==KeyEvent.ACTION_UP&&(k==KeyEvent.KEYCODE_DPAD_CENTER||k==KeyEvent.KEYCODE_ENTER)){consumeCenterUp=false;return true;}
         if(movingPkg!=null){
-            if(k==KeyEvent.KEYCODE_DPAD_LEFT||k==KeyEvent.KEYCODE_DPAD_RIGHT){if(e.getAction()==KeyEvent.ACTION_DOWN){int old=favorites.indexOf(movingPkg),next=old+(k==KeyEvent.KEYCODE_DPAD_LEFT?-1:1);if(next>=0&&next<favorites.size()){String other=favorites.get(next);Collections.swap(favorites,old,next);View current=favoriteRow.findViewWithTag("fav:"+movingPkg),neighbor=favoriteRow.findViewWithTag("fav:"+other);if(current!=null&&neighbor!=null){playRemoteSound(k==KeyEvent.KEYCODE_DPAD_LEFT?"left":"right");int target=favoriteRow.indexOfChild(neighbor);favoriteRow.removeView(current);favoriteRow.addView(current,target);current.requestFocus();}}}return true;}
+            if(k==KeyEvent.KEYCODE_DPAD_LEFT||k==KeyEvent.KEYCODE_DPAD_RIGHT){if(e.getAction()==KeyEvent.ACTION_DOWN){int old=favorites.indexOf(movingPkg),next=old+(k==KeyEvent.KEYCODE_DPAD_LEFT?-1:1);if(next>=0&&next<favorites.size()){String other=favorites.get(next);Collections.swap(favorites,old,next);View current=favoriteRow.findViewWithTag("fav:"+movingPkg),neighbor=favoriteRow.findViewWithTag("fav:"+other);if(current!=null&&neighbor!=null){playRemoteSound(k==KeyEvent.KEYCODE_DPAD_LEFT?"left":"right");swapTiles(current,neighbor);}}}return true;}
             if(k==KeyEvent.KEYCODE_DPAD_CENTER||k==KeyEvent.KEYCODE_ENTER){if(e.getAction()==KeyEvent.ACTION_DOWN&&e.getRepeatCount()==0){movingPkg=null;consumeCenterUp=true;saveFavorites();}return true;}
             if(k==KeyEvent.KEYCODE_BACK){if(e.getAction()==KeyEvent.ACTION_DOWN){String pkg=movingPkg;movingPkg=null;favorites.clear();favorites.addAll(moveBackup);restoreFocus="fav:"+pkg;renderFavorites();}return true;}
             return true;
@@ -225,7 +340,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         else if(n==2){loadApps();loadWatchNext();}
         else if(n==3)showMobileControl();
         else if(n==4){if(appUpdater==null)appUpdater=new AppUpdater(this);appUpdater.check();}
-        else new AlertDialog.Builder(this).setTitle("Glide Glass").setMessage("Glide TV 4.5.0\n\nHold OK on a favorite to move it, then use left/right. OK saves, Back cancels. Press Menu for other app options. Pin apps from the library with a long press.\n\nContinue Watching shows only history shared by the highlighted app. RAM and storage update every five seconds while Home is visible.\n\nWeather: Open-Meteo (open-meteo.com). City search: Open-Meteo / GeoNames. Air quality: CAMS ENSEMBLE via Open-Meteo. CC BY 4.0. AQI uses the US scale; UV and rain chance are hourly forecasts. No ads or analytics.").setPositiveButton("Done",null).show();
+        else new AlertDialog.Builder(this).setTitle("Glide Glass").setMessage("Glide TV 4.5.0\n\nHold OK on a favorite to move it, then use left/right. OK saves, Back cancels. Press Menu for other app options. Pin apps from the library with a long press.\n\nContinue Watching appears a few seconds after Home opens and shows only history shared by the highlighted app. RAM and storage update every five seconds while Home is visible.\n\nWeather: Open-Meteo (open-meteo.com). City search: Open-Meteo / GeoNames. Air quality: CAMS ENSEMBLE via Open-Meteo. CC BY 4.0. AQI uses the US scale; UV and rain chance are hourly forecasts. No ads or analytics.").setPositiveButton("Done",null).show();
     }).setNegativeButton("Close",null).show();}
     void showMobileControl(){
         try{
@@ -287,13 +402,13 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     void renderSelectedWatch(){
         App selected=app(selectedPkg);if(selected==null)return;String key=watchKey(selectedPkg);if(key.equals(renderedWatchKey))return;renderedWatchKey=key;
         ArrayList<WatchItem> visible=new ArrayList<>();for(WatchItem w:watchItems)if(selectedPkg.equals(w.pkg))visible.add(w);
-        watchTitle.setText("Continue in "+selected.label);int limit=Math.min(12,visible.size());watchCount.setText(visible.isEmpty()?"":limit<visible.size()?limit+" of "+visible.size()+" titles":visible.size()+" titles");
+        int limit=Math.min(Math.min(12,visible.size()),watchFit());
         watchRow.removeAllViews();watchStrip.scrollTo(0,0);watchRow.setAlpha(1);
-        if(visible.isEmpty()){
-            if(emptyWatch==null){emptyWatch=column();emptyWatch.setGravity(Gravity.CENTER_VERTICAL);emptyWatch.setPadding(dp(20),dp(15),dp(20),dp(15));emptyWatchTitle=text("",18,0xffd4dfef);emptyWatchTitle.setTypeface(android.graphics.Typeface.create("sans-serif-light",0));emptyWatch.addView(emptyWatchTitle);gap(emptyWatch,8);emptyWatch.addView(text("Shared watch history appears here when this app provides it.",11,0xffa9bdd5));}
-            emptyWatchTitle.setText("Nothing to resume in "+selected.label);watchRow.addView(emptyWatch,new LinearLayout.LayoutParams(dp(850),dp(124)));
-        }else for(int n=0;n<limit;n++){if(n>=watchPool.size())watchPool.add(makeWatchCard());WatchHolder holder=watchPool.get(n);bindWatchCard(holder,visible.get(n));watchRow.addView(holder.frame);}
+        if(visible.isEmpty()){watchHasItems=false;bubbleOut();return;}
+        watchHasItems=true;
+        for(int n=0;n<limit;n++){if(n>=watchPool.size())watchPool.add(makeWatchCard());WatchHolder holder=watchPool.get(n);bindWatchCard(holder,visible.get(n));watchRow.addView(holder.frame);}
         for(int n=limit;n<watchPool.size();n++){WatchHolder unused=watchPool.get(n);unused.item=null;unused.image.setTag("");unused.image.setImageDrawable(null);}
+        reaimBubble();
         handler.removeCallbacks(trimIdle);handler.postDelayed(trimIdle,1600);
     }
     void maybeSetupLocation(){if(!weatherLocation.configured()&&!prefs.getBoolean("location_prompted",false)&&!locationPromptScheduled){locationPromptScheduled=true;handler.postDelayed(()->{locationPromptScheduled=false;if(active&&!isDestroyed()){prefs.edit().putBoolean("location_prompted",true).apply();weatherLocation.showChooser();}},800);}}
@@ -348,21 +463,39 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         });
     }
     void watchEmpty(String title,String subtitle,boolean permission){
-        watchRow.removeAllViews();watchCount.setText(permission?"Permission needed":"Shared by supported apps");LinearLayout box=column();box.setGravity(Gravity.CENTER_VERTICAL);box.setPadding(dp(22),dp(18),dp(22),dp(18));box.setBackground(new GlassDrawable(dp(22),false));
-        TextView t=text(title,19,ink);t.setTypeface(android.graphics.Typeface.create("sans-serif-light",0));box.addView(t);gap(box,9);box.addView(text(subtitle,12,0xffc0cce1));
-        if(permission){gap(box,12);box.addView(button("Enable Continue Watching",()->requestPermissions(new String[]{"android.permission.READ_TV_LISTINGS"},40)));}
-        watchRow.addView(box,new LinearLayout.LayoutParams(dp(860),dp(124)));
+        watchRow.removeAllViews();watchHasItems=true;reaimBubble();LinearLayout box=column();box.setGravity(Gravity.CENTER_VERTICAL);box.setPadding(dp(4),dp(6),dp(4),dp(6));
+        TextView t=text(title,15,ink);t.setTypeface(android.graphics.Typeface.create("sans-serif-light",0));box.addView(t);gap(box,5);box.addView(text(subtitle,11,0xffc0cce1));
+        if(permission){gap(box,6);box.addView(button("Enable Continue Watching",()->requestPermissions(new String[]{"android.permission.READ_TV_LISTINGS"},40)));}
+        watchRow.addView(box,new LinearLayout.LayoutParams(-2,dp(100)));
     }
     @Override public void onRequestPermissionsResult(int code,String[] names,int[] grants){super.onRequestPermissionsResult(code,names,grants);if(code==WeatherLocation.PERMISSION)weatherLocation.permissionResult();else if(code==40)loadWatchNext();else if(code==41){connectivity.update();connectivity.openWifiSettings();}else if(code==42){connectivity.update();connectivity.openBluetoothSettings();}else if(code==43)connectivity.update();}
-    private static class WatchHolder {FrameLayout frame;ImageView image;TextView service,title;ProgressBar progress;WatchItem item;}
+    private static class WatchHolder {LinearLayout frame;ImageView image;TextView title;ProgressRim rim;float done;int accent=IconPalette.NEUTRAL;WatchItem item;}
     WatchHolder makeWatchCard(){
-        WatchHolder holder=new WatchHolder();FrameLayout frame=new FrameLayout(this);holder.frame=frame;LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(246),dp(124));lp.setMarginEnd(dp(13));frame.setLayoutParams(lp);frame.setClipToOutline(true);frame.setOutlineProvider(new ViewOutlineProvider(){public void getOutline(View v,android.graphics.Outline o){o.setRoundRect(0,0,v.getWidth(),v.getHeight(),dp(18));}});
-        holder.image=new ImageView(this);holder.image.setScaleType(ImageView.ScaleType.CENTER_CROP);holder.image.setBackgroundColor(0xff29364b);frame.addView(holder.image,new FrameLayout.LayoutParams(-1,-1));
-        View shade=new View(this);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x05071422,0x30080e1c,0xf0080e1c}));frame.addView(shade,new FrameLayout.LayoutParams(-1,-1));LinearLayout words=column();words.setPadding(dp(14),0,dp(14),dp(10));holder.service=text("",9,0xffd1e2f2);holder.service.setLetterSpacing(.1f);words.addView(holder.service);gap(words,4);holder.title=text("",14,ink);holder.title.setMaxLines(1);holder.title.setEllipsize(android.text.TextUtils.TruncateAt.END);holder.title.setTypeface(null,1);words.addView(holder.title);gap(words,6);
-        holder.progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);holder.progress.setMax(1000);holder.progress.setProgressTintList(android.content.res.ColorStateList.valueOf(0xffe1f3ff));holder.progress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0x55ffffff));words.addView(holder.progress,new LinearLayout.LayoutParams(-1,dp(3)));frame.addView(words,new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM));View border=new View(this);border.setBackground(new GlassDrawable(dp(18),false,true));frame.addView(border,new FrameLayout.LayoutParams(-1,-1));frame.setFocusable(true);frame.setClickable(true);frame.setOnFocusChangeListener((v,f)->border.setBackground(new GlassDrawable(dp(18),f,true)));
-        frame.setOnClickListener(v->{WatchItem w=holder.item;if(w==null)return;try{Intent i=Intent.parseUri(w.intent,Intent.URI_INTENT_SCHEME);i.setPackage(w.pkg);i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);open(i);}catch(Exception e){toast("This app’s resume link is unavailable");}});return holder;
+        WatchHolder holder=new WatchHolder();
+        LinearLayout card=column();holder.frame=card;card.setClipChildren(false);card.setClipToPadding(false);card.setGravity(Gravity.CENTER_HORIZONTAL);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(CARD_W),-2);lp.setMarginEnd(dp(CARD_GAP));card.setLayoutParams(lp);
+        FrameLayout pic=new FrameLayout(this);
+        FrameLayout shot=new FrameLayout(this);shot.setClipToOutline(true);shot.setOutlineProvider(new ViewOutlineProvider(){public void getOutline(View v,android.graphics.Outline o){o.setRoundRect(0,0,v.getWidth(),v.getHeight(),dp(12));}});
+        holder.image=new ImageView(this);holder.image.setScaleType(ImageView.ScaleType.CENTER_CROP);holder.image.setBackgroundColor(0xff1d2738);shot.addView(holder.image,new FrameLayout.LayoutParams(-1,-1));
+        FrameLayout.LayoutParams shotLp=new FrameLayout.LayoutParams(-1,-1);shotLp.setMargins(dp(6),dp(6),dp(6),dp(6));pic.addView(shot,shotLp);
+        // The ring sits in its own margin outside the artwork, so it never blends into the picture.
+        View edge=new View(this);ProgressRim rim=new ProgressRim(dp(17));holder.rim=rim;edge.setBackground(rim);pic.addView(edge,new FrameLayout.LayoutParams(-1,-1));
+        card.addView(pic,new LinearLayout.LayoutParams(-1,dp(CARD_H)));gap(card,TITLE_GAP);
+        holder.title=text("",11,ink);holder.title.setSingleLine(true);holder.title.setEllipsize(android.text.TextUtils.TruncateAt.END);holder.title.setGravity(Gravity.CENTER);
+        card.addView(holder.title,new LinearLayout.LayoutParams(-1,-2));
+        card.setFocusable(true);card.setClickable(true);
+        card.setOnFocusChangeListener((v,f)->{rim.set(holder.done,f,holder.accent);holder.title.setTextColor(f?Color.WHITE:0xffc3d2e4);
+            v.animate().cancel();v.animate().scaleX(f?1.06f:1f).scaleY(f?1.06f:1f).setDuration(180).setInterpolator(new android.view.animation.DecelerateInterpolator(1.4f)).start();});
+        card.setOnClickListener(v->{WatchItem w=holder.item;if(w==null)return;try{Intent i=Intent.parseUri(w.intent,Intent.URI_INTENT_SCHEME);i.setPackage(w.pkg);i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);open(i);}catch(Exception e){toast("This app\u2019s resume link is unavailable");}});return holder;
     }
-    void bindWatchCard(WatchHolder holder,WatchItem item){holder.item=item;App owner=app(item.pkg);String name=owner==null?item.pkg:owner.label;holder.service.setText(name.toUpperCase(Locale.getDefault()));holder.title.setText(item.title);holder.progress.setVisibility(item.duration>0?View.VISIBLE:View.INVISIBLE);holder.progress.setProgress(item.duration>0?(int)Math.min(1000,Math.max(0,1000*item.position/item.duration)):0);holder.frame.setContentDescription("Resume "+item.title+" in "+name);holder.image.setTag(item.art);holder.image.setImageDrawable(null);loadArtwork(item.art,holder.image);}
+    void bindWatchCard(WatchHolder holder,WatchItem item){
+        holder.item=item;App owner=app(item.pkg);String name=owner==null?item.pkg:owner.label;
+        holder.title.setText(item.title);holder.title.setTextColor(holder.frame.hasFocus()?Color.WHITE:0xffc3d2e4);
+        holder.done=item.duration>0?Math.min(1f,Math.max(0f,item.position/(float)item.duration)):0f;
+        holder.accent=owner==null?IconPalette.NEUTRAL:owner.accent;
+        holder.rim.set(holder.done,holder.frame.hasFocus(),holder.accent);
+        holder.frame.setContentDescription("Resume "+item.title+" in "+name);holder.image.setTag(item.art);holder.image.setImageDrawable(null);loadArtwork(item.art,holder.image);
+    }
     void loadArtwork(String uri,ImageView target){
         if(uri==null||uri.isEmpty())return;Bitmap cached=artCache.get(uri);if(cached!=null){target.setImageBitmap(cached);return;}
         java.lang.ref.WeakReference<ImageView> destination=new java.lang.ref.WeakReference<>(target);
