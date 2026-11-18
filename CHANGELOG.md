@@ -2,6 +2,10 @@
 
 App releases use semantic versions and an increasing Android version code. Scene packs have their own [changelog](scenes/CHANGELOG.md) and can be published independently.
 
+## 4.6.1
+
+- Run the actual Android TV UI capture and D-pad focus checks at 720p, 1080p, and 4K for every pull request.
+
 ## 4.6.0
 
 - Favorites show each app's own square icon again instead of its wide TV banner.
