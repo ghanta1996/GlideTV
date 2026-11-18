@@ -139,6 +139,29 @@ press() {
   sleep .5
 }
 
+capture_watch_focus() {
+  local capture_name="$1"
+  for _ in 1 2 3 4; do
+    press UP
+    capture "$capture_name-probe"
+    if python3 - "$output/$capture_name-probe.xml" <<'PY'
+import sys, xml.etree.ElementTree as ET
+tree=ET.parse(sys.argv[1])
+focused=[node for node in tree.iter('node') if node.get('focused')=='true']
+raise SystemExit(0 if any('Resume Focus regression' in node.get('content-desc','') for node in focused) else 1)
+PY
+    then
+      mv "$output/$capture_name-probe.png" "$output/$capture_name.png"
+      mv "$output/$capture_name-probe.xml" "$output/$capture_name.xml"
+      return
+    fi
+    press DOWN
+    sleep 1
+  done
+  echo "Continue Watching did not become focusable at $capture_name" >&2
+  exit 1
+}
+
 capture_performance() {
   local label="$1"
   adb shell dumpsys gfxinfo "$app_id" reset >/dev/null
@@ -182,8 +205,10 @@ capture_resolution() {
     adb uninstall "$app_id"
   fi
   adb install -r "${VISUAL_HEAD_APK:-build/GlideTV.apk}"
-  seed_home
+  seed_home true
   capture "after-$label-coral"
+  capture_watch_focus "after-$label-watch"
+  press DOWN
   for name in ocean mint mono; do
     adb shell input keyevent KEYCODE_DPAD_RIGHT
     sleep 1
@@ -276,9 +301,11 @@ if grep -Fq "Process: $app_id, PID:" "$output/android-errors.txt"; then
 fi
 python3 - "$output" "${resolutions[@]/x/-}" <<'PY'
 from pathlib import Path
-import sys, xml.etree.ElementTree as ET
+import re, sys, xml.etree.ElementTree as ET
 root=Path(sys.argv[1])
 resolutions=sys.argv[2:]
+reference_geometry=None
+layout_rows=[]
 
 def png_size(path):
     with path.open('rb') as image:
@@ -287,8 +314,48 @@ def png_size(path):
         assert image.read(4) == b'IHDR', path
         return tuple(int.from_bytes(image.read(4), 'big') for _ in range(2))
 
+def bounds(node):
+    values=[int(value) for value in re.findall(r'\d+',node.get('bounds',''))]
+    assert len(values)==4, node.attrib
+    return values
+
+def find_node(nodes, text='', description=''):
+    for node in nodes:
+        if text and node.get('text','')==text:
+            return node
+        if description and description in node.get('content-desc',''):
+            return node
+    raise AssertionError((text,description))
+
 for resolution in resolutions:
     expected_size=tuple(int(value) for value in resolution.split('-'))
+    layout_tree=ET.parse(root/(f'after-{resolution}-watch.xml'))
+    layout_nodes=list(layout_tree.iter('node'))
+    width,height=expected_size
+    interactive=[node for node in layout_nodes if node.get('package')=='space.glidetv.launcher' and (node.get('focusable')=='true' or node.get('clickable')=='true')]
+    for node in interactive:
+        left,top,right,bottom=bounds(node)
+        assert 0<=left<right<=width and 0<=top<bottom<=height, node.attrib
+    remote=find_node(layout_nodes,description='Glide Remote')
+    library=find_node(layout_nodes,text='App library')
+    settings=find_node(layout_nodes,text='Settings')
+    watch=find_node(layout_nodes,description='Resume Focus regression')
+    favorites=[node for node in layout_nodes if ', favorite. Hold OK to move.' in node.get('content-desc','')]
+    assert len(favorites)==4, [node.attrib for node in favorites]
+    top_controls=[bounds(node) for node in (remote,library,settings)]
+    assert all(top_controls[index][2]<=top_controls[index+1][0] for index in range(len(top_controls)-1)), top_controls
+    favorite_bounds=[bounds(node) for node in favorites]
+    assert all(favorite_bounds[index][2]<=favorite_bounds[index+1][0] for index in range(len(favorite_bounds)-1)), favorite_bounds
+    watch_bounds=bounds(watch)
+    assert max(item[3] for item in top_controls)<watch_bounds[1], (top_controls,watch_bounds)
+    assert watch_bounds[3]<min(item[1] for item in favorite_bounds), (watch_bounds,favorite_bounds)
+    key_bounds=[bounds(remote),bounds(library),bounds(settings),watch_bounds,favorite_bounds[0]]
+    geometry=[coordinate/(width if index%2==0 else height) for item in key_bounds for index,coordinate in enumerate(item)]
+    if reference_geometry is None:
+        reference_geometry=geometry
+    else:
+        assert max(abs(current-reference) for current,reference in zip(geometry,reference_geometry))<.004, (resolution,geometry,reference_geometry)
+    layout_rows.append((resolution,bounds(remote),bounds(library),bounds(settings),watch_bounds,favorite_bounds[0]))
     for name,label in [('coral','Coral demo'),('ocean','Ocean demo'),('mint','Mint demo'),('mono','Mono demo')]:
         capture_name=f'after-{resolution}-{name}'
         tree=ET.parse(root/(capture_name+'.xml'))
@@ -297,6 +364,13 @@ for resolution in resolutions:
         screenshot=root/(capture_name+'.png')
         assert screenshot.stat().st_size>10000, capture_name
         assert png_size(screenshot) == expected_size, (capture_name, png_size(screenshot), expected_size)
+(root/'layout-geometry.md').write_text(
+    '# Home layout geometry\n\n'
+    'Actual Android TV UI bounds. CI also verifies every interactive control stays on-screen, the top controls and dock tiles do not overlap, Continue Watching stays between the top bar and dock, and normalized key bounds remain within 0.4% across resolutions.\n\n'
+    '| Resolution | Remote | App library | Settings | Continue Watching | Focused favorite |\n'
+    '| --- | --- | --- | --- | --- | --- |\n'+
+    ''.join(f'| {resolution.replace("-","×")} | `{remote}` | `{library}` | `{settings}` | `{watch}` | `{favorite}` |\n' for resolution,remote,library,settings,watch,favorite in layout_rows)
+)
 print('Runtime screenshots and D-pad focus states verified at 720p, 1080p, and 4K')
 PY
 python3 - "$output" <<'PY'
