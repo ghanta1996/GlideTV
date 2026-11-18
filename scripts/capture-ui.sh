@@ -14,6 +14,18 @@ output="${1:-build/visual-review}"
 mkdir -p "$output" build/visual-fixtures
 output="$(realpath "$output")"
 app_id=space.glidetv.launcher
+IFS=',' read -r -a resolutions <<< "${VISUAL_RESOLUTIONS:-1920x1080}"
+for resolution in "${resolutions[@]}"; do
+  if [[ ! "$resolution" =~ ^[1-9][0-9]*x[1-9][0-9]*$ ]]; then
+    echo "Invalid visual resolution: $resolution" >&2
+    exit 1
+  fi
+done
+reset_display() {
+  adb shell wm size reset >/dev/null 2>&1 || true
+  adb shell wm density reset >/dev/null 2>&1 || true
+}
+trap reset_display EXIT
 
 # These demo packages provide real PackageManager icons/banners, without accounts or media history.
 python3 - <<'PY'
@@ -48,8 +60,6 @@ for name in coral ocean mint mono; do
   adb install -r "$fixture/demo.apk"
 done
 
-adb shell wm size 1920x1080
-adb shell wm density 320
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 0
 adb shell settings put global window_animation_scale 0
@@ -80,20 +90,52 @@ capture() {
   adb pull /sdcard/glide-window.xml "$output/$1.xml" >/dev/null
 }
 
-if [[ -n "${VISUAL_BASE_APK:-}" ]]; then
-  adb install -r "$VISUAL_BASE_APK"
+density_for_resolution() {
+  case "$1" in
+    1280x720) printf '%s\n' 213 ;;
+    1920x1080) printf '%s\n' 320 ;;
+    3840x2160) printf '%s\n' 640 ;;
+    *) printf '%s\n' 320 ;;
+  esac
+}
+
+capture_resolution() {
+  local resolution="$1"
+  local label="${resolution/x/-}"
+  local density
+  density="$(density_for_resolution "$resolution")"
+
+  if [[ "$resolution" == 3840x2160 ]]; then
+    adb shell wm size reset
+  else
+    adb shell wm size "$resolution"
+  fi
+  adb shell wm density "$density"
+  if [[ -n "${VISUAL_BASE_APK:-}" ]]; then
+    adb install -r "$VISUAL_BASE_APK"
+    seed_home
+    capture "before-$label"
+    adb uninstall "$app_id"
+  fi
+  adb install -r "${VISUAL_HEAD_APK:-build/GlideTV.apk}"
   seed_home
-  capture before
+  capture "after-$label-coral"
+  for name in ocean mint mono; do
+    adb shell input keyevent KEYCODE_DPAD_RIGHT
+    sleep 1
+    capture "after-$label-$name"
+  done
   adb uninstall "$app_id"
-fi
+}
+
+for resolution in "${resolutions[@]}"; do
+  capture_resolution "$resolution"
+done
+
+adb shell wm size 1920x1080
+adb shell wm density 320
 adb install -r "${VISUAL_HEAD_APK:-build/GlideTV.apk}"
 seed_home
-capture after-coral
-for name in ocean mint mono; do
-  adb shell input keyevent KEYCODE_DPAD_RIGHT
-  sleep 1
-  capture "after-$name"
-done
 # A short unedited recording demonstrates color transitions and left/right focus changes.
 adb shell screenrecord --time-limit 12 --bit-rate 4000000 /sdcard/glide-dock.mp4 &
 recording=$!
@@ -109,16 +151,30 @@ if grep -Fq "Process: $app_id, PID:" "$output/android-errors.txt"; then
   cat "$output/android-errors.txt" >&2
   exit 1
 fi
-python3 - "$output" <<'PY'
+python3 - "$output" "${resolutions[@]/x/-}" <<'PY'
 from pathlib import Path
 import sys, xml.etree.ElementTree as ET
 root=Path(sys.argv[1])
-for name,label in [('after-coral','Coral demo'),('after-ocean','Ocean demo'),('after-mint','Mint demo'),('after-mono','Mono demo')]:
-    tree=ET.parse(root/(name+'.xml'))
-    focused=[n for n in tree.iter('node') if n.get('focused')=='true']
-    assert any(label in n.get('content-desc','') for n in focused), (name, [n.attrib for n in focused])
-    assert (root/(name+'.png')).stat().st_size>10000, name
-print('Runtime screenshots and D-pad focus states verified')
+resolutions=sys.argv[2:]
+
+def png_size(path):
+    with path.open('rb') as image:
+        assert image.read(8) == b'\x89PNG\r\n\x1a\n', path
+        assert image.read(4) == b'\x00\x00\x00\r', path
+        assert image.read(4) == b'IHDR', path
+        return tuple(int.from_bytes(image.read(4), 'big') for _ in range(2))
+
+for resolution in resolutions:
+    expected_size=tuple(int(value) for value in resolution.split('-'))
+    for name,label in [('coral','Coral demo'),('ocean','Ocean demo'),('mint','Mint demo'),('mono','Mono demo')]:
+        capture_name=f'after-{resolution}-{name}'
+        tree=ET.parse(root/(capture_name+'.xml'))
+        focused=[node for node in tree.iter('node') if node.get('focused')=='true']
+        assert any(label in node.get('content-desc','') for node in focused), (capture_name, [node.attrib for node in focused])
+        screenshot=root/(capture_name+'.png')
+        assert screenshot.stat().st_size>10000, capture_name
+        assert png_size(screenshot) == expected_size, (capture_name, png_size(screenshot), expected_size)
+print('Runtime screenshots and D-pad focus states verified at 720p, 1080p, and 4K')
 PY
 git rev-parse HEAD > "$output/tested-commit.txt"
-printf '%s\n' 'Android TV API 36 emulator, 1920x1080 at 320 dpi. Coral/Ocean/Mint/Mono are synthetic demo apps, not third-party services. Scenery is the native fallback; location is unset. Screenshots and recording are actual app captures.' > "$output/README.txt"
+printf '%s\n' 'Android TV API 36 emulator. Captured UI sizes: 1280x720 at 213 dpi, 1920x1080 at 320 dpi, and 3840x2160 at 640 dpi, preserving a comparable TV layout scale. Coral/Ocean/Mint/Mono are synthetic demo apps, not third-party services. Scenery is the native fallback; location is unset. Screenshots and recording are actual app captures.' > "$output/README.txt"

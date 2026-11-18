@@ -71,6 +71,6 @@ The on-device test needs network access. It uses separate temporary files and pr
 
 ## Visual review captures
 
-Pull-request checks capture the launcher on a disposable Android TV emulator, using synthetic demo apps and no personal watch history. Download the **GlideTV-visual-review** artifact for before/after screenshots, focus states and a short recording. Inspect and embed the relevant images in the PR description; the artifact alone is not a visual review.
+Pull-request checks capture the launcher on a disposable Android TV emulator at 720p, 1080p and 4K with comparable logical TV layout scaling, using synthetic demo apps and no personal watch history. Download the **GlideTV-visual-review** artifact for before/after screenshots, focus states and a short recording. Inspect and embed the relevant images in the PR description; the artifact alone is not a visual review.
 
 To capture locally, start a disposable Android TV emulator, build a local APK with `android:debuggable="true"` on the application element in the manifest, and run `bash scripts/capture-ui.sh`. This script replaces emulator app preferences with demo data and refuses to run on a real TV. Set `VISUAL_BASE_APK` to a debuggable baseline APK to also capture the previous layout.
