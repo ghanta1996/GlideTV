@@ -5,12 +5,16 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import urllib.error
 from unittest.mock import patch
 import zipfile
 
 spec = importlib.util.spec_from_file_location('packs', Path(__file__).with_name('package-scenes.py'))
 packs = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(packs)
+publisher_spec = importlib.util.spec_from_file_location('publisher', Path(__file__).with_name('publish-scene-index.py'))
+publisher = importlib.util.module_from_spec(publisher_spec)
+publisher_spec.loader.exec_module(publisher)
 
 class SceneReleases(unittest.TestCase):
     def setUp(self):
@@ -63,6 +67,60 @@ class SceneReleases(unittest.TestCase):
         self.write_catalog()
         with self.assertRaises(AssertionError):
             self.build('one')
+
+    def test_first_catalogue_release_keeps_legacy_pack_hashes(self):
+        previous = self.build('one')
+        missing = urllib.error.HTTPError(packs.INDEX_URL, 404, 'Not found', {}, None)
+        with patch.object(packs.urllib.request, 'urlopen', side_effect=[missing, io.BytesIO(json.dumps(previous).encode())]) as request:
+            self.assertEqual(packs.previous_catalogue(), previous)
+        self.assertEqual([call.args[0] for call in request.call_args_list],
+                         [packs.INDEX_URL, packs.LEGACY_INDEX_URL])
+
+    def test_catalogue_errors_do_not_bypass_immutability(self):
+        error = urllib.error.HTTPError(packs.INDEX_URL, 503, 'Unavailable', {}, None)
+        with patch.object(packs.urllib.request, 'urlopen', side_effect=error) as request:
+            with self.assertRaises(urllib.error.HTTPError):
+                packs.previous_catalogue()
+        self.assertEqual(request.call_count, 1)
+
+
+class CataloguePublishing(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.catalogue = Path(self.temp.name) / 'scenes.json'
+        self.catalogue.write_text('{"packs": []}')
+        env = patch.dict('os.environ', {'GH_REPO': 'example/launcher'})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def test_existing_catalogue_updates_asset_without_a_main_commit(self):
+        with patch.object(publisher.subprocess, 'run') as run:
+            run.return_value.returncode = 0
+            publisher.publish(self.catalogue)
+        calls = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(calls, [
+            ['gh', 'api', 'repos/example/launcher/releases/tags/scene-catalogue'],
+            ['gh', 'release', 'upload', 'scene-catalogue', str(self.catalogue), '--clobber'],
+            ['gh', 'release', 'edit', 'scene-catalogue', '--latest=false']])
+
+    def test_bootstrap_never_replaces_latest_app_release(self):
+        with patch.object(publisher.subprocess, 'run') as run, patch.object(publisher.subprocess, 'check_output', return_value='abc123\n'):
+            run.return_value.returncode = 1
+            run.return_value.stderr = 'HTTP 404: Not Found'
+            publisher.publish(self.catalogue)
+        command = run.call_args.args[0]
+        self.assertEqual(command[:4], ['gh', 'release', 'create', 'scene-catalogue'])
+        self.assertIn('--latest=false', command)
+        self.assertEqual(command[command.index('--target') + 1], 'abc123')
+
+    def test_permission_error_does_not_create_or_upload(self):
+        with patch.object(publisher.subprocess, 'run') as run:
+            run.return_value.returncode = 1
+            run.return_value.stderr = 'HTTP 403: Forbidden'
+            with self.assertRaisesRegex(RuntimeError, '403'):
+                publisher.publish(self.catalogue)
+        self.assertEqual(run.call_count, 1)
 
 if __name__ == '__main__':
     unittest.main()

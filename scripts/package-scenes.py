@@ -10,7 +10,19 @@ import urllib.request
 import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
-INDEX_URL = 'https://raw.githubusercontent.com/ghanta1996/GlideTV/main/scenes/index.json'
+INDEX_URL = 'https://github.com/ghanta1996/GlideTV/releases/download/scene-catalogue/scenes.json'
+LEGACY_INDEX_URL = 'https://raw.githubusercontent.com/ghanta1996/GlideTV/main/scenes/index.json'
+
+def previous_catalogue():
+    # Preserve published pack hashes while bootstrapping the release-hosted catalogue.
+    for url in (INDEX_URL, LEGACY_INDEX_URL):
+        try:
+            with urllib.request.urlopen(url, timeout=15) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as error:
+            if error.code != 404:
+                raise
+    return {}
 
 def build(tag, output):
     catalog = json.loads((ROOT / 'scenes/catalog.json').read_text())
@@ -19,13 +31,7 @@ def build(tag, output):
         raise ValueError('Scene tag must match catalogVersion')
     if not re.fullmatch(r'(?:scene-)?v\d+\.\d+\.\d+', tag):
         raise ValueError('Invalid release tag')
-    previous = {}
-    try:
-        with urllib.request.urlopen(INDEX_URL, timeout=15) as response:
-            previous = json.load(response)
-    except urllib.error.HTTPError as error:
-        if error.code != 404:
-            raise
+    previous = previous_catalogue()
     old = {(p['id'], p['version']): p['sha256'] for p in previous.get('packs', [])}
     if previous and tuple(map(int, catalog['catalogVersion'].split('.'))) < tuple(map(int, previous['catalogVersion'].split('.'))):
         raise ValueError('Cannot publish an older catalogue')

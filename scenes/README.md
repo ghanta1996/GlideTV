@@ -15,7 +15,10 @@ Glide keeps artwork outside the APK. Cached scenes work offline. Abu Dhabi has a
 | File | Role |
 | --- | --- |
 | [catalog.json](catalog.json) | Maintainers edit pack definitions here |
-| [index.json](index.json) | CI generates the public catalogue and checksums |
+| [Public catalogue](https://github.com/ghanta1996/GlideTV/releases/download/scene-catalogue/scenes.json) | CI publishes scene metadata and checksums as a release asset |
+| [index.json](index.json) | Legacy snapshot used by app versions through 4.5.0 |
+
+The catalogue asset is updated on the `scene-catalogue` release, which is never marked as the latest app release. Generated data does not write to protected `main`. Upgrade to Glide 4.5.1 or later to receive future catalogue updates; older apps keep using the legacy snapshot and cached scenes.
 
 ## Versions
 

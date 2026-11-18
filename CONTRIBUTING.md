@@ -24,6 +24,8 @@ C --> D["Open a PR against main"]
 
 Use the [developer guide](docs/DEVELOPMENT.md) for local builds. Keep changes focused and preserve D-pad navigation, readable TV text and existing preferences. In the PR, explain the result, link related issues and list checks you ran.
 
+Code changes must increase both `versionName` and `versionCode` in `AndroidManifest.xml` and add a matching entry to `CHANGELOG.md`. CI checks this before releasing automatically from `main`. Documentation-only changes need no version bump. See the [release rules](docs/DEVELOPMENT.md#build-and-release).
+
 ## Show visible changes
 
 Attach **before/after screenshots or a short screen recording in the PR description**. Capture the running app on an emulator or TV; mockups are useful for proposals but do not verify an implementation.
@@ -37,7 +39,7 @@ Show relevant focus states, transitions and empty states. Include the tested com
 | Native launcher | `bash build.sh`, relevant runtime checks on Android TV |
 | Icon colors | `bash scripts/test-icon-palette.sh` |
 | APK download handling | `bash scripts/test-downloads.sh` |
-| Scene packs and release tooling | `python3 scripts/test_release.py` |
+| Version policy and release tooling | `python3 scripts/test_version.py`, `python3 scripts/test_release.py` |
 | Documentation | Check links and preview diagrams/images |
 
 If you could not run a check, say so and explain the limitation. Do not describe an untested result as verified.

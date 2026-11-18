@@ -1,7 +1,10 @@
 name: Release APK
 
 on:
+  pull_request:
+    branches: [main]
   push:
+    branches: [main]
     tags: ['v*']
   workflow_dispatch:
     inputs:
@@ -14,25 +17,67 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ inputs.tag || github.ref_name }}
+  group: release-${{ github.event.pull_request.number || inputs.tag || github.ref }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
+  version:
+    name: Version check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      release_needed: ${{ steps.version.outputs.release_needed }}
+      tag: ${{ steps.version.outputs.tag }}
+      sha: ${{ steps.version.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Always validate with the tooling from the dispatched/pushed workflow revision,
+          # so rebuilding an older tag does not depend on that tag carrying these scripts.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Test version policy and scene release invariants
+        run: |
+          python3 scripts/test_version.py
+          python3 scripts/test_release.py
+      - name: Validate version and decide whether to release
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EXPLICIT_TAG: ${{ inputs.tag || github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            python3 scripts/check-version.py --base "$BASE_SHA" --pull-request
+          elif [[ "$EVENT_NAME" == workflow_dispatch || "$REF_TYPE" == tag ]]; then
+            python3 scripts/check-version.py --tag "$EXPLICIT_TAG" --head "$EXPLICIT_TAG"
+          else
+            python3 scripts/check-version.py --base "$BASE_SHA"
+          fi
+
   release:
+    needs: version
+    if: github.event_name != 'pull_request' && needs.version.outputs.release_needed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    concurrency: scene-catalog-publish
+    concurrency:
+      group: scene-catalog-publish
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: write
     env:
-      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      RELEASE_TAG: ${{ needs.version.outputs.tag }}
+      RELEASE_SHA: ${{ needs.version.outputs.sha }}
     steps:
-      - name: Validate release tag
-        shell: bash
-        run: '[[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]'
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ needs.version.outputs.sha }}
           persist-credentials: false
       - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
@@ -57,8 +102,6 @@ jobs:
           GLIDE_KEY_PASSWORD: ${{ secrets.GLIDE_KEY_PASSWORD }}
           GLIDE_KEY_ALIAS: ${{ secrets.GLIDE_KEY_ALIAS }}
         run: bash ./build.sh
-      - name: Test scene release invariants
-        run: python3 scripts/test_release.py
       - name: Package APK and update metadata
         run: python3 scripts/release-metadata.py --tag "$RELEASE_TAG"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -74,6 +117,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          set -euo pipefail
+          # Create the tag only after the signed APK and all metadata are ready.
+          # Never move an existing version tag, including when retrying a run.
+          if gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" > "$RUNNER_TEMP/release-ref.json"; then
+            TAG_SHA=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["object"]["sha"])' "$RUNNER_TEMP/release-ref.json")
+            TAG_TYPE=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["object"]["type"])' "$RUNNER_TEMP/release-ref.json")
+            while [[ "$TAG_TYPE" == tag ]]; do
+              gh api "repos/$GH_REPO/git/tags/$TAG_SHA" > "$RUNNER_TEMP/release-ref.json"
+              TAG_SHA=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["object"]["sha"])' "$RUNNER_TEMP/release-ref.json")
+              TAG_TYPE=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["object"]["type"])' "$RUNNER_TEMP/release-ref.json")
+            done
+            [[ "$TAG_TYPE" == commit && "$TAG_SHA" == "$RELEASE_SHA" ]] || { echo 'Release tag belongs to another commit'; exit 1; }
+          else
+            gh api --method POST "repos/$GH_REPO/git/refs" -f "ref=refs/tags/$RELEASE_TAG" -f "sha=$RELEASE_SHA"
+          fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" build/release/* --clobber
             gh release edit "$RELEASE_TAG" --notes-file build/release-notes.md
