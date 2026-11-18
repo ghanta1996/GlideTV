@@ -28,6 +28,9 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     private final android.database.ContentObserver watchChanges=new android.database.ContentObserver(handler){public void onChange(boolean self){if(active)loadWatchNext();}};
     private int watchGeneration=0;
     private HorizontalScrollView appStrip, watchStrip;
+    private DockDrawable dockGlass;
+    private android.animation.ValueAnimator dockTint;
+    private int dockColor=IconPalette.NEUTRAL;
     private UsageMeters meters;
     private ConnectivityStatus connectivity;
     private RemoteControlServer mobileControl;
@@ -61,8 +64,8 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     private android.content.SharedPreferences prefs;
     private static final String STOCK="com.google.android.apps.tv.launcherx";
     private static class App {
-        String pkg,label; Intent intent; Drawable icon;
-        App(String p,String l,Intent i,Drawable d){pkg=p;label=l;intent=i;icon=d;}
+        String pkg,label; Intent intent; Drawable icon,banner; int accent;
+        App(String p,String l,Intent i,Drawable d,Drawable b,int c){pkg=p;label=l;intent=i;icon=d;banner=b;accent=c;}
     }
     private final Runnable ticker=new Runnable(){public void run(){
         if(clock!=null){Date now=new Date();clock.setText(localTime("h:mm",now));date.setText(localTime("EEEE, d MMMM",now));}
@@ -83,7 +86,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         loadApps();
     }
     @Override public void onResume(){super.onResume();active=true;if(appUpdater!=null)appUpdater.onResume();weatherLocation.onResume();handler.removeCallbacks(ticker);ticker.run();meters.start();connectivity.start();if(weatherLocation.configured()&&!prefs.getBoolean("connection_permissions_prompted",false)){prefs.edit().putBoolean("connection_permissions_prompted",true).apply();connectivity.requestInitialStatusPermissions(43);}backdrop.setRunning(true);if(!loaded)loadApps();loadWatchNext();refreshWeather();maybeSetupLocation();}
-    @Override public void onPause(){super.onPause();active=false;handler.removeCallbacks(ticker);meters.stop();connectivity.stop();backdrop.setRunning(false);}
+    @Override public void onPause(){super.onPause();active=false;if(dockTint!=null)dockTint.end();handler.removeCallbacks(ticker);meters.stop();connectivity.stop();backdrop.setRunning(false);}
     @Override public void onDestroy(){super.onDestroy();if(appUpdater!=null)appUpdater.close();weatherLocation.close();scenePacks.close();handler.removeCallbacksAndMessages(null);unregisterReceiver(changes);backdrop.dispose();getContentResolver().unregisterContentObserver(watchChanges);if(mobileControl!=null)mobileControl.stop();worker.shutdownNow();artwork.shutdownNow();}
     @Override public void onBackPressed(){if(firstApp!=null)firstApp.requestFocus();}
     @Override protected void onNewIntent(Intent i){super.onNewIntent(i);if(firstApp!=null)firstApp.requestFocus();}
@@ -113,8 +116,13 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         meters=new UsageMeters(this);meters.setOnRamClickListener(v->new RamDialog(this,()->{artCache.evictAll();handler.removeCallbacks(trimIdle);handler.postDelayed(trimIdle,600);},icons,pkg->{App owner=app(pkg);return owner==null?pkg:owner.label;}));top.addView(meters);connectivity=new ConnectivityStatus(this,(permission,requestCode)->requestPermissions(new String[]{permission},requestCode));top.addView(connectivity);top.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));LinearLayout.LayoutParams remoteLp=new LinearLayout.LayoutParams(dp(96),dp(32));remoteLp.setMarginEnd(dp(8));top.addView(remoteShortcut(),remoteLp);top.addView(button("App library",()->showLibrary()));top.addView(button("Settings",()->options()));page.addView(top,new LinearLayout.LayoutParams(-1,dp(32)));gap(page,12);
         LinearLayout hero=row();LinearLayout time=column();clock=text("",56,ink);clock.setTypeface(android.graphics.Typeface.create("sans-serif-light",0));date=text("",15,Color.WHITE);time.addView(clock);gap(time,3);time.addView(date);hero.addView(time,new LinearLayout.LayoutParams(dp(235),-2));
         weatherSymbol=text("◌",43,0xffffd695);hero.addView(weatherSymbol);LinearLayout weatherBox=column();weatherBox.setGravity(Gravity.START);weather=text("Set your location",28,ink);weatherDetail=text("Loading weather…",14,Color.WHITE);weatherBox.addView(weather);gap(weatherBox,5);weatherBox.addView(weatherDetail);gap(weatherBox,5);weatherStats=text("",13,Color.WHITE);weatherRain=text("",13,Color.WHITE);weatherBox.addView(weatherStats);gap(weatherBox,4);weatherBox.addView(weatherRain);for(TextView detail:new TextView[]{date,weatherDetail,weatherStats,weatherRain})detail.setShadowLayer(dp(.7f),0,dp(.5f),0x90000b19);LinearLayout.LayoutParams wp=new LinearLayout.LayoutParams(dp(420),-2);wp.setMarginStart(dp(16));hero.addView(weatherBox,wp);page.addView(hero,new LinearLayout.LayoutParams(-1,dp(110)));gap(page,13);
-        LinearLayout fh=row();TextView ft=text("Favorites",17,ink);ft.setTypeface(null,1);fh.addView(ft,new LinearLayout.LayoutParams(0,-2,1));count=text("",10,0xffb4c4dc);fh.addView(count);page.addView(fh,new LinearLayout.LayoutParams(-1,dp(20)));gap(page,5);
-        appStrip=new HorizontalScrollView(this);appStrip.setHorizontalScrollBarEnabled(false);appStrip.setClipToPadding(false);appStrip.setClipChildren(false);appStrip.setPadding(dp(4),dp(5),dp(4),dp(5));appStrip.setOverScrollMode(View.OVER_SCROLL_NEVER);appStrip.setSmoothScrollingEnabled(true);favoriteRow=row();favoriteRow.setClipChildren(false);appStrip.addView(favoriteRow);page.addView(appStrip,new LinearLayout.LayoutParams(-1,dp(146)));gap(page,13);
+        page.addView(new View(this),new LinearLayout.LayoutParams(1,0,1));
+        count=text("",10,0xffb4c4dc);count.setGravity(Gravity.END);page.addView(count,new LinearLayout.LayoutParams(-1,dp(16)));gap(page,6);
+        FrameLayout dockHost=new FrameLayout(this);dockHost.setClipChildren(false);dockHost.setClipToPadding(false);
+        appStrip=new HorizontalScrollView(this);appStrip.setHorizontalScrollBarEnabled(false);appStrip.setClipToPadding(false);appStrip.setClipChildren(false);appStrip.setPadding(dp(12),dp(10),dp(12),dp(10));appStrip.setOverScrollMode(View.OVER_SCROLL_NEVER);appStrip.setSmoothScrollingEnabled(true);
+        dockGlass=new DockDrawable(dp(28),false);appStrip.setBackground(dockGlass);
+        favoriteRow=row();favoriteRow.setClipChildren(false);favoriteRow.setClipToPadding(false);appStrip.addView(favoriteRow);
+        dockHost.addView(appStrip,new FrameLayout.LayoutParams(-2,-1,Gravity.CENTER_HORIZONTAL));page.addView(dockHost,new LinearLayout.LayoutParams(-1,dp(116)));gap(page,17);
         LinearLayout wh=row();watchTitle=text("Continue watching",17,ink);watchTitle.setTypeface(null,1);wh.addView(watchTitle,new LinearLayout.LayoutParams(0,-2,1));watchCount=text("",10,0xffb4c4dc);wh.addView(watchCount);page.addView(wh,new LinearLayout.LayoutParams(-1,dp(20)));gap(page,7);
         watchStrip=new HorizontalScrollView(this);watchStrip.setHorizontalScrollBarEnabled(false);watchStrip.setClipChildren(false);watchStrip.setClipToPadding(false);watchStrip.setPadding(dp(4),dp(4),dp(4),dp(4));watchStrip.setOverScrollMode(View.OVER_SCROLL_NEVER);watchStrip.setSmoothScrollingEnabled(true);watchRow=row();watchRow.setClipChildren(false);watchStrip.addView(watchRow);page.addView(watchStrip,new LinearLayout.LayoutParams(-1,dp(132)));
         updateNotice=button("",()->appUpdater.showAvailable());updateNotice.setVisibility(View.GONE);updateNotice.setTextColor(mint);updateNotice.setContentDescription("Glide update available. Select to review and install.");FrameLayout.LayoutParams noticeLp=new FrameLayout.LayoutParams(-2,dp(34),Gravity.BOTTOM|Gravity.END);noticeLp.setMargins(0,0,dp(40),dp(12));root.addView(updateNotice,noticeLp);
@@ -137,7 +145,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
             }
             for(Map.Entry<String,ResolveInfo> e:available.entrySet()){
                 String pkg=e.getKey();if(pkg.equals(getPackageName())||pkg.equals(STOCK))continue;ResolveInfo r=e.getValue();
-                String revision=r.activityInfo.applicationInfo.sourceDir;String label=prefs.getString("app-label:"+pkg,null);if(!revision.equals(prefs.getString("app-revision:"+pkg,""))||label==null){label=r.loadLabel(pm).toString();prefs.edit().putString("app-label:"+pkg,label).putString("app-revision:"+pkg,revision).apply();}
+                String revision=r.activityInfo.applicationInfo.sourceDir;String label=prefs.getString("app-label:"+pkg,null);if(!revision.equals(prefs.getString("app-revision:"+pkg,""))||label==null){icons.remove(pkg);label=r.loadLabel(pm).toString();prefs.edit().putString("app-label:"+pkg,label).putString("app-revision:"+pkg,revision).apply();}
                 Intent i=new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setComponent(new ComponentName(pkg,r.activityInfo.name)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
                 Drawable icon=icons.get(pkg);
                 if(icon==null){try{
@@ -145,7 +153,10 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
                     if(bmp==null){Drawable raw=r.loadIcon(pm);int edge=dp(favorites.contains(pkg)?76:48);bmp=Bitmap.createBitmap(edge,edge,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(bmp);raw.setBounds(0,0,edge,edge);raw.draw(canvas);try(java.io.FileOutputStream out=new java.io.FileOutputStream(file)){bmp.compress(Bitmap.CompressFormat.PNG,100,out);}}
                     icon=new BitmapDrawable(getResources(),bmp);icons.put(pkg,icon);
                 }catch(Exception ignored){}}
-                found.add(new App(pkg,label,i,icon));
+                Drawable banner=null;int accent=IconPalette.NEUTRAL;
+                try{Drawable raw=r.activityInfo.loadBanner(pm);if(raw==null)raw=pm.getApplicationBanner(pkg);if(raw!=null){Bitmap bmp=Bitmap.createBitmap(256,144,Bitmap.Config.ARGB_8888);raw.setBounds(0,0,256,144);raw.draw(new Canvas(bmp));banner=new BitmapDrawable(getResources(),bmp);}}catch(Exception ignored){}
+                if(icon instanceof BitmapDrawable){Bitmap source=((BitmapDrawable)icon).getBitmap();Bitmap sample=Bitmap.createScaledBitmap(source,32,32,true);int[] pixels=new int[1024];sample.getPixels(pixels,0,32,0,0,32,32);accent=IconPalette.fromPixels(pixels);if(sample!=source)sample.recycle();}
+                found.add(new App(pkg,label,i,icon,banner,accent));
             }
             Collections.sort(found,(a,b)->a.label.compareToIgnoreCase(b.label));
             handler.post(()->{loading=false;if(isDestroyed())return;apps.clear();apps.addAll(found);if(!prefs.contains("favorites")){for(int n=0;n<Math.min(6,apps.size());n++)favorites.add(apps.get(n).pkg);prefs.edit().putString("favorites",String.join(",",favorites)).apply();}loaded=true;updateApps();});
@@ -153,22 +164,30 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     }
     App app(String p){for(App a:apps)if(a.pkg.equals(p))return a;return null;}
     void updateApps(){
-        renderFavorites();count.setText(apps.size()+" apps in your library");
+        count.setText(apps.size()+" apps in your library");renderFavorites();
     }
     void renderFavorites(){
         View old=getCurrentFocus();String focus=restoreFocus!=null?restoreFocus:old!=null&&old.getTag() instanceof String?(String)old.getTag():null;restoreFocus=null;
         favoriteRow.removeAllViews();firstApp=null;
-        for(String p:favorites){App a=app(p);if(a==null)continue;View item=tile(a,true);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(132),dp(128));lp.setMarginEnd(dp(10));favoriteRow.addView(item,lp);if(firstApp==null)firstApp=item;}
-        if(firstApp==null){favoriteRow.addView(button("Choose favorites",()->showLibrary()));}
+        for(String p:favorites){App a=app(p);if(a==null)continue;View item=tile(a,true);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(146),dp(96));favoriteRow.addView(item,lp);if(firstApp==null)firstApp=item;}
+        if(firstApp==null){selectedPkg=null;tintDock(IconPalette.NEUTRAL);favoriteRow.addView(button("Choose favorites",()->showLibrary()));}
         View target=focus==null?null:favoriteRow.findViewWithTag(focus);if(target!=null)target.requestFocus();else if(firstApp!=null){firstApp.requestFocus();selectApp(appsForFirstFavorite());}
     }
     App appsForFirstFavorite(){for(String p:favorites){App a=app(p);if(a!=null)return a;}return null;}
-    void selectApp(App a){if(a==null||a.pkg.equals(selectedPkg))return;selectedPkg=a.pkg;handler.removeCallbacks(selectWatch);handler.postDelayed(selectWatch,16);}
+    void selectApp(App a){if(a==null)return;tintDock(a.accent);if(a.pkg.equals(selectedPkg))return;selectedPkg=a.pkg;handler.removeCallbacks(selectWatch);handler.postDelayed(selectWatch,16);}
+    void tintDock(int color){
+        if(dockGlass==null)return;if(dockTint!=null)dockTint.cancel();
+        if(dockColor==color){dockGlass.setAccent(color,true);return;}
+        dockTint=android.animation.ValueAnimator.ofArgb(dockColor,color);dockTint.setDuration(260);
+        dockTint.addUpdateListener(animation->{dockColor=(Integer)animation.getAnimatedValue();dockGlass.setAccent(dockColor,true);});dockTint.start();
+    }
     View tile(App a,boolean favorite){
         LinearLayout item=column();item.setGravity(Gravity.CENTER);item.setClipChildren(false);item.setClipToPadding(false);item.setPadding(dp(5),dp(4),dp(5),dp(4));item.setTag((favorite?"fav:":"app:")+a.pkg);item.setContentDescription(a.label+(favorite?", favorite. Hold OK to move.":". Hold OK to pin."));
-        FrameLayout halo=new FrameLayout(this);halo.setPadding(dp(4),dp(4),dp(4),dp(4));ImageView logo=new ImageView(this);logo.setImageDrawable(a.pkg.equals("com.netflix.ninja")?new NetflixIcon():a.icon);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);logo.setBackgroundColor(0xff111724);logo.setClipToOutline(true);logo.setOutlineProvider(new ViewOutlineProvider(){public void getOutline(View v,android.graphics.Outline o){o.setRoundRect(0,0,v.getWidth(),v.getHeight(),dp(16));}});halo.addView(logo,new FrameLayout.LayoutParams(-1,-1));item.addView(halo,new LinearLayout.LayoutParams(dp(favorite?84:70),dp(favorite?84:70)));gap(item,favorite?18:8);
+        FrameLayout halo=new FrameLayout(this);halo.setPadding(dp(4),dp(4),dp(4),dp(4));ImageView logo=new ImageView(this);logo.setImageDrawable(favorite&&a.banner!=null?a.banner:a.pkg.equals("com.netflix.ninja")?new NetflixIcon():a.icon);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);logo.setBackgroundColor(0xff090d14);logo.setPadding(dp(favorite&&a.banner==null?15:0),dp(favorite&&a.banner==null?7:0),dp(favorite&&a.banner==null?15:0),dp(favorite&&a.banner==null?7:0));logo.setClipToOutline(true);logo.setOutlineProvider(new ViewOutlineProvider(){public void getOutline(View v,android.graphics.Outline o){o.setRoundRect(0,0,v.getWidth(),v.getHeight(),dp(12));}});halo.addView(logo,new FrameLayout.LayoutParams(-1,-1));item.addView(halo,new LinearLayout.LayoutParams(dp(favorite?132:70),dp(favorite?76:70)));gap(item,favorite?0:8);
         TextView name=text(a.label,11,ink);name.setSingleLine(true);name.setEllipsize(android.text.TextUtils.TruncateAt.END);name.setGravity(Gravity.CENTER);item.addView(name,new LinearLayout.LayoutParams(-1,-2));item.setFocusable(true);item.setClickable(true);
-        item.setOnFocusChangeListener((v,f)->{halo.setBackground(null);halo.animate().cancel();halo.animate().scaleX(f?1.35f:1).scaleY(f?1.35f:1).setDuration(180).setInterpolator(new android.view.animation.DecelerateInterpolator(1.4f)).start();if(f&&favorite)selectApp(a);name.setTextColor(f?Color.WHITE:0xffcbd7e9);});
+        if(favorite)name.setVisibility(View.GONE);
+        DockDrawable cardGlass=new DockDrawable(dp(16),true);cardGlass.setAccent(a.accent,false);halo.setBackground(cardGlass);
+        item.setOnFocusChangeListener((v,f)->{cardGlass.setAccent(a.accent,f);halo.animate().cancel();float scale=f?(favorite?1.08f:1.16f):1f;halo.animate().scaleX(scale).scaleY(scale).setDuration(180).setInterpolator(new android.view.animation.DecelerateInterpolator(1.4f)).start();if(f&&favorite){selectApp(a);count.setText(a.label+"  ·  Hold OK to move  ·  Menu for options");}name.setTextColor(f?Color.WHITE:0xffcbd7e9);});
         item.setOnClickListener(v->{if(!favorite&&libraryDialog!=null)libraryDialog.dismiss();open(a.intent);});item.setOnLongClickListener(v->{if(favorite)startMove(a);else appOptions(a,false);return true;});
         item.setOnKeyListener((v,k,e)->{if(k==KeyEvent.KEYCODE_MENU&&e.getAction()==KeyEvent.ACTION_DOWN){appOptions(a,favorite);return true;}return false;});return item;
     }

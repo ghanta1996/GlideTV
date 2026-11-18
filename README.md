@@ -16,6 +16,8 @@ A clean home for Android TV, with living scenery, your favorite apps, and contro
 
 **Your apps, front and center.** Big icons, quick favorites, a separate app library, and Continue Watching that follows the highlighted app. Watch history appears when the media app shares it with Android TV.
 
+Favorites sit in a centered translucent dock. Highlight an app to smoothly tint the dock and its focus outline with a color sampled from the app icon. TV banners fill the wide cards where available; other apps use their icon. Monochrome icons use a soft silver accent. Long-press and Menu controls work as before, and longer favorite lists scroll horizontally.
+
 **Your phone is a remote.** Scan to pair, navigate the TV, adjust volume, browse storage, send files, manage running apps, or install an APK from your phone with confirmation on the TV.
 
 **Light from the start.** Artwork is downloaded separately and cached for offline use. The native Java launcher bundles no scene imagery and needs no video for the default live scenery. RAM/storage meters and connection shortcuts keep useful TV information close.
@@ -126,6 +128,8 @@ Forks should update the repository URLs in the updater, scene downloader, and re
 Artwork prompts and provenance are under [`assets/live`](assets/live). Third-party app logos shown in screenshots belong to their respective owners; those apps are not included in Glide.
 
 ## Development checks
+
+`bash scripts/test-icon-palette.sh` checks icon color extraction, neutral/transparent backgrounds, dominant colors, and visibility of dark brand colors. Pull requests build a development APK and run these checks in GitHub Actions. The development APK uses a temporary signing key and cannot update an official installation; use the signed release workflow for upgrades.
 
 `python3 scripts/test_release.py` checks reproducible scene archives, immutable versions, fallback coverage, and catalogue/tag rules. Both release workflows run these checks.
 
