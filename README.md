@@ -1,7 +1,5 @@
 # Glide TV
 
-### Your TV. Beautifully simple.
-
 A lightweight home for Android TV and Google TV, with living scenery, favorite apps and control from your phone.
 
 [**Download APK**](https://github.com/ghanta1996/GlideTV/releases/latest) · [Setup guide](docs/DEFAULT_HOME.md) · [What's new](CHANGELOG.md)
@@ -9,12 +7,6 @@ A lightweight home for Android TV and Google TV, with living scenery, favorite a
 ![Glide TV with the optional Abu Dhabi scenery pack](screenshots/home-abu-dhabi.png)
 
 *Optional Abu Dhabi scenery. Choose your own location during setup.*
-
-## Make it yours
-
-- **Living scenery** that follows weather and daylight, with downloaded artwork cached for offline use.
-- **Your apps, one dock** with favorites, icon-based colors and Continue Watching from supported apps.
-- **Your phone, a remote** for navigation, volume and app installation.
 
 ## Get started
 
@@ -30,9 +22,7 @@ Requires **Android TV / Google TV 8.0+**. Default-Home support depends on your T
 
 ## Contribute
 
-Bug fixes, translations, accessibility improvements and new scenery are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for reporting issues, building Glide and submitting a pull request. Visual changes need screenshots or a recording.
-
-[Developer guide](docs/DEVELOPMENT.md) · [Scene packs](scenes/README.md)
+[Contribution guide](CONTRIBUTING.md) · [Developer guide](docs/DEVELOPMENT.md) · [Scene packs](scenes/README.md)
 
 ## Credits
 

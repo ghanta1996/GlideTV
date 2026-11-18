@@ -1,22 +1,34 @@
 # Make Glide your default Home
 
-These steps apply to Android TV and Google TV. Settings labels and manufacturer restrictions vary; Glide cannot guarantee that every firmware will allow a replacement Home.
+Keep your original launcher installed. Menu names and replacement Home support vary by TV firmware.
+
+```mermaid
+flowchart TD
+A["Install and open Glide"] --> B{"Home app setting available?"}
+B -->|Yes| C["Select Glide and test Home"]
+B -->|No| D["Connect ADB and record stock Home"]
+D --> E["Set Glide and test Home"]
+E -->|Need to undo| F["Restore stock Home"]
+```
 
 ## 1. Install and try Glide
 
-Download the APK from [Releases](https://github.com/ghanta1996/GlideTV/releases/latest). Sideload it using a TV installer or ADB. Open Glide from your app list, set your location, let its scene download, and confirm that your apps open normally.
-
-Keep the original launcher installed while setting up Glide.
+Follow the [installation guide](INSTALLATION.md). Open Glide and verify that your apps launch.
 
 ## 2. Try the TV settings
 
-Open Android **Settings → Apps → Default apps → Home app**, if your TV exposes that menu, and choose **Glide TV**. Some TVs place the option under **Special app access** or call it **Default launcher**. If pressing Home presents a launcher chooser, select Glide and choose **Always**.
+| What you see | Choose |
+| --- | --- |
+| **Settings → Apps → Default apps → Home app** | **Glide TV** |
+| **Special app access** or **Default launcher** | Look for **Home app**, then choose **Glide TV** |
+| A chooser when you press Home | **Glide TV → Always** |
 
-Press the physical remote's Home button several times, including from a media app. If it consistently opens Glide, setup is complete.
+Press Home from inside another app. If the TV still opens its stock launcher, continue below.
 
 ## 3. Connect ADB if there is no Home setting
 
-On the TV, open **Settings → System / Device Preferences → About** and select **Android TV OS build / Build number** seven times to enable Developer options. Open **Developer options**, enable **USB debugging**, and enable **Wireless debugging** if offered.
+1. In **Settings → System / Device Preferences → About**, select **Build number** seven times.
+2. In **Developer options**, enable **USB debugging** and **Wireless debugging** if available.
 
 For TVs with a pairing screen:
 
@@ -26,7 +38,7 @@ adb pair <tv-ip>:<pairing-port>
 adb connect <tv-ip>:<debugging-port>
 ```
 
-The pairing and debugging ports are often different. Use the values displayed by your TV. Some older TVs offer network debugging directly instead; use their displayed address/port or a USB debugging connection. Accept the computer authorization prompt on the TV, then run `adb devices` to confirm it is connected.
+Use the two ports shown on the TV. Older TVs may offer direct network debugging or USB instead. Accept the authorization prompt and confirm with `adb devices`.
 
 ## 4. Record the original launcher
 
@@ -79,7 +91,7 @@ adb -s "$TV_SERIAL" shell cmd package set-home-activity --user "$TV_USER" \
 adb -s "$TV_SERIAL" shell am start -a android.intent.action.MAIN -c android.intent.category.HOME
 ```
 
-This disables that activity for the current user; it does not delete the package or its data. Do not disable whole groups of system apps, voice-search services, System UI, or setup/recovery components. If another manufacturer activity takes over Home, inspect it individually before changing it. Firmware can enforce additional restrictions; stop and restore the original Home if Glide still cannot be selected reliably.
+Keep ADB connected. Disable only the stock Home activity you saved. If you can’t select Glide reliably, restore the original Home below.
 
 ## 7. Restore the original Home
 

@@ -12,25 +12,39 @@ export ANDROID_SDK_ROOT=/path/to/android-sdk
 ./build.sh
 ```
 
-Run `bash scripts/test-downloads.sh` to exercise Downloader resolution, redirects, and rejected/incomplete downloads.
+| Build output | Path |
+| --- | --- |
+| Launcher APK | `build/GlideTV.apk` |
+| Optional helper DEX | `build/bridge-dex/classes.dex` |
 
-Outputs: `build/GlideTV.apk` and `build/bridge-dex/classes.dex`. The build recognizes the development machine's Homebrew defaults on macOS. Local builds generate an ignored development keystore if needed. For your own releases, provide `GLIDE_KEYSTORE`, `GLIDE_KEYSTORE_PASSWORD`, `GLIDE_KEY_PASSWORD`, and `GLIDE_KEY_ALIAS`. Keep the same signing key for upgrades; a separately signed fork cannot replace an official build.
+Local builds generate an ignored development keystore when needed. Use the same signing key to upgrade an existing install.
 
-The [APK workflow](../.github/workflows/release.yml) publishes a signed APK, helper, checksums, `update.json`, current scene packs, and the scene catalogue. The [scene workflow](../.github/workflows/scenes.yml) publishes packs independently. Both require a changelog entry and derive release notes from it.
+| Release | Update first | Tag | Publishes |
+| --- | --- | --- | --- |
+| [App](../.github/workflows/release.yml) | Android version code, `versionName`, [app changelog](../CHANGELOG.md) | `v<versionName>` | Signed APK, helper, checksums, updater manifest and scenes |
+| [Scenes](../.github/workflows/scenes.yml) | Catalogue and pack versions, [scene changelog](../scenes/CHANGELOG.md) | `scene-v<catalogVersion>` | Packs and catalogue, independently of the APK |
 
-Maintainers configure `GLIDE_KEYSTORE_BASE64`, `GLIDE_KEYSTORE_PASSWORD`, `GLIDE_KEY_PASSWORD`, and `GLIDE_KEY_ALIAS` as repository secrets. The signing key is never committed; CI fails if it is missing.
+<details>
+<summary>Release signing and forks</summary>
 
-For an app release, increase the Android version code, set `versionName`, update [CHANGELOG.md](../CHANGELOG.md), and push a matching `v<versionName>` tag. For a scene release, update the catalogue/pack versions and [scene changelog](../scenes/CHANGELOG.md), then push `scene-v<catalogVersion>`. Published pack content cannot change under an existing version. Manual workflow dispatch supports rebuilding an existing tag.
+- Local release build variables are `GLIDE_KEYSTORE`, `GLIDE_KEYSTORE_PASSWORD`, `GLIDE_KEY_PASSWORD` and `GLIDE_KEY_ALIAS`.
+- CI uses `GLIDE_KEYSTORE_BASE64`, `GLIDE_KEYSTORE_PASSWORD`, `GLIDE_KEY_PASSWORD` and `GLIDE_KEY_ALIAS` as repository secrets.
+- For forks, update the repository URLs in the updater, scene downloader and release scripts. Use your own key.
+- To rebuild an existing tag, use workflow dispatch. Published scene pack versions are immutable.
 
-Forks should update the repository URLs in the updater, scene downloader, and release scripts and use their own release key.
+</details>
 
 ## Development checks
 
-`bash scripts/test-icon-palette.sh` checks icon color extraction, neutral/transparent backgrounds, dominant colors, and visibility of dark brand colors. Pull requests build a development APK and run these checks in GitHub Actions. The development APK uses a temporary signing key and cannot update an official installation; use the signed release workflow for upgrades.
+| Check | Command |
+| --- | --- |
+| Launcher build | `bash build.sh` |
+| Icon palette | `bash scripts/test-icon-palette.sh` |
+| Downloader resolution and redirects | `bash scripts/test-downloads.sh` |
+| Scene archives and release rules | `python3 scripts/test_release.py` |
+| Location, downloads and caching | `./scripts/test-on-device.sh <adb-serial>` after building |
 
-`python3 scripts/test_release.py` checks reproducible scene archives, immutable versions, fallback coverage, and catalogue/tag rules. Both release workflows run these checks.
-
-After `./build.sh`, run `./scripts/test-on-device.sh <adb-serial>` for Android runtime checks. It uses a separate shell process with temporary preferences/files and the public catalogue to test fresh setup, legacy-location migration, worldwide geocoding, city/fallback selection, verified downloads, cache reuse, and cleanup. It does not install or launch Glide or change the TV's real location/settings. Network access is required, and the script removes its own temporary test files afterward.
+The on-device test needs network access. It uses separate temporary files and preferences and cleans them up afterward.
 
 ## Code map
 
