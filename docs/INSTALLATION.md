@@ -1,33 +1,43 @@
 # Install and update GlideTV
 
-## Install
+**Requires Android TV or Google TV 8.0+ (API 26).**
 
-Glide runs on Android TV / Google TV with Android 8.0 (API 26) or newer. Replacement-Home behavior depends on the TV's firmware.
+![Download Glide, choose your city, then set it as Home](images/get-started.svg)
 
-1. Download the APK from [Releases](https://github.com/ghanta1996/GlideTV/releases/latest) and sideload it using your preferred installer, or ADB:
+1. Download `GlideTV.apk` from [Releases](https://github.com/ghanta1996/GlideTV/releases/latest). Sideload it with your preferred installer or ADB.
+2. Open Glide and use device location or search for a city/postal code. Weather and scene downloads require internet.
+3. [Set Glide as Home](DEFAULT_HOME.md) if supported by your TV, then pin favorites from the app library.
 
-   ```sh
-   adb -s <adb-serial> install -r GlideTV.apk
-   ```
+```sh
+adb -s "$TV_SERIAL" install -r GlideTV.apk
+```
 
-2. Open Glide. Choose **Use device location** or **Search city**. If the TV cannot provide a location, city/postal-code search works worldwide. Downloading scenes and fetching weather require internet access.
-3. Follow the complete [default-Home guide](DEFAULT_HOME.md). It covers TV settings, wireless ADB, saving the original launcher, selecting Glide, testing Home, firmware restrictions, and restoring the original Home.
-4. Pin your favorite apps from the library. Existing saved favorites and supported older location settings are preserved during an update.
+Set `TV_SERIAL` to the TV's serial from `adb devices`.
 
-The app may request Android location, TV listings/Watch Next, and Bluetooth connection access. Location is optional; searching for a city does not require device-location permission. Coordinates determine local weather, air quality, time zone, sunrise, and sunset. Weather includes temperature, feels-like, humidity, UV, precipitation, rain chance, wind, and US AQI.
+| Optional permission | Enables |
+| --- | --- |
+| Location | Automatic local weather and scenery. Manual city search is also available. |
+| TV listings / Watch Next | Continue Watching from apps that share it |
+| Bluetooth | Bluetooth connection status |
+
+## Install with Downloader
+
+Enter **`3583851`** in Downloader or Glide’s **Apps → Downloader** field. [Short download link](https://aftv.news/3583851) · [Registration details](https://aftv.news/3583851+)
 
 ## Updates
 
-Choose **Settings → Check for updates**. Glide checks the latest stable public APK, downloads over HTTPS, verifies its checksum and package/version, then opens Android's installation confirmation. Android enforces the signing identity; normal upgrades preserve your settings. From v4.5.0, Glide also checks quietly when Home opens, then at most every six hours while Home is active. A selectable **Glide update available** notice appears on Home; it does not interrupt another app or install anything automatically. Failed background checks retry after fifteen minutes. Versions before v4.5.0 need one manual check to receive this feature.
-
-Android may evict Glide while another app is active. Reopen Home and start Remote to make the browser connection available again.
-
-## Share Glide with a Downloader code
-
-Each release publishes this stable APK address:
-
-```text
-https://github.com/ghanta1996/GlideTV/releases/latest/download/GlideTV.apk
+```mermaid
+flowchart TD
+A["Settings → Check for updates"] --> B["Glide downloads and verifies the APK"]
+B --> C["Confirm installation on the TV"]
 ```
 
-Submit that URL at the [AFTVnews URL Shortener](https://go.aftvnews.com/) and complete its verification to obtain a numeric code. The code can be entered in Downloader or Glide's mobile Downloader field. Use the stable address so future releases keep the same code; AFTVnews does not currently let creators edit a code's destination. No numeric Glide code has been registered by this repository.
+Glide verifies the checksum, package and version. Android checks the signing key. Normal upgrades preserve favorites and settings.
+
+| When | What happens |
+| --- | --- |
+| v4.5.0 and later | Home checks on launch and at most every six hours while active. Failed checks retry after 15 minutes. |
+| An update is available | Select **Glide update available** on Home to start. |
+| Earlier versions | Use **Check for updates** manually. |
+
+[Direct APK download](https://github.com/ghanta1996/GlideTV/releases/latest/download/GlideTV.apk) · [Install from the phone remote](REMOTE.md)

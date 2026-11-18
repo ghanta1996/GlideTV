@@ -15,11 +15,14 @@ For a feature or larger redesign, start an issue explaining the user need and pr
 
 ## Make a change
 
-1. Fork the repository and create a branch from `main`.
-2. Follow the [developer guide](docs/DEVELOPMENT.md) to build locally. No release keys or private services are needed for a development build.
-3. Keep the change focused. Preserve D-pad navigation, readable TV-sized text, existing preferences and the lightweight native approach.
-4. Run the checks relevant to your change and describe what you verified. Add regression coverage when it checks meaningful behavior.
-5. Open a pull request against `main`, explaining the problem and resulting behavior. Link related issues.
+```mermaid
+flowchart TD
+A["Fork and branch from main"] --> B["Build and make your change"]
+B --> C["Run relevant checks"]
+C --> D["Open a PR against main"]
+```
+
+Use the [developer guide](docs/DEVELOPMENT.md) for local builds. Keep changes focused and preserve D-pad navigation, readable TV text and existing preferences. In the PR, explain the result, link related issues and list checks you ran.
 
 ## Show visible changes
 

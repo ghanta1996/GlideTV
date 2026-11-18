@@ -6,7 +6,7 @@
 - Include this GitHub-recognized co-author trailer in commits containing Codex work:
 
   ```text
-  Co-authored-by: Codex <199175422+chatgpt-codex-connector[bot]@users.noreply.github.com>
+  Co-authored-by: Codex <267193182+codex@users.noreply.github.com>
   ```
 
 - Keep the authenticated PR opener's identity accurate. Co-authorship credits the implementation; it does not change who opened the PR.
