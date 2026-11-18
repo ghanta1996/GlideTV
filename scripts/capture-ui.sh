@@ -139,6 +139,17 @@ press() {
   sleep .5
 }
 
+capture_performance() {
+  local label="$1"
+  adb shell dumpsys gfxinfo "$app_id" reset >/dev/null
+  for key in RIGHT RIGHT RIGHT LEFT LEFT LEFT; do
+    adb shell input keyevent "KEYCODE_DPAD_$key"
+    sleep 1.9
+  done
+  adb shell dumpsys gfxinfo "$app_id" > "$output/$label-gfxinfo.txt"
+  adb shell dumpsys meminfo "$app_id" > "$output/$label-meminfo.txt"
+}
+
 density_for_resolution() {
   case "$1" in
     1280x720) printf '%s\n' 213 ;;
@@ -164,6 +175,10 @@ capture_resolution() {
     adb install -r "$VISUAL_BASE_APK"
     seed_home
     capture "before-$label"
+    if [[ "$resolution" == 1920x1080 ]]; then
+      seed_home true
+      capture_performance "before-$label"
+    fi
     adb uninstall "$app_id"
   fi
   adb install -r "${VISUAL_HEAD_APK:-build/GlideTV.apk}"
@@ -174,6 +189,10 @@ capture_resolution() {
     sleep 1
     capture "after-$label-$name"
   done
+  if [[ "$resolution" == 1920x1080 ]]; then
+    seed_home true
+    capture_performance "after-$label"
+  fi
   adb uninstall "$app_id"
 }
 
@@ -279,6 +298,38 @@ for resolution in resolutions:
         assert screenshot.stat().st_size>10000, capture_name
         assert png_size(screenshot) == expected_size, (capture_name, png_size(screenshot), expected_size)
 print('Runtime screenshots and D-pad focus states verified at 720p, 1080p, and 4K')
+PY
+python3 - "$output" <<'PY'
+from pathlib import Path
+import re, sys
+
+root=Path(sys.argv[1])
+def metrics(prefix):
+    memory=(root/f'{prefix}-meminfo.txt').read_text(errors='replace')
+    frames=(root/f'{prefix}-gfxinfo.txt').read_text(errors='replace')
+    pss=re.search(r'TOTAL PSS:\s*([0-9,]+)',memory)
+    if not pss:
+        pss=re.search(r'^\s*TOTAL\s+([0-9,]+)',memory,re.MULTILINE)
+    total=re.search(r'Total frames rendered:\s*([0-9,]+)',frames)
+    janky=re.search(r'Janky frames:\s*([0-9,]+)',frames)
+    tail=re.search(r'99th percentile:\s*([0-9,]+)ms',frames)
+    return {
+        'pss': pss.group(1) if pss else 'see raw capture',
+        'frames': total.group(1) if total else 'see raw capture',
+        'janky': janky.group(1) if janky else 'see raw capture',
+        'tail': tail.group(1) if tail else 'see raw capture',
+    }
+
+before=metrics('before-1920-1080')
+after=metrics('after-1920-1080')
+(root/'performance-summary.md').write_text(
+    '# Home performance capture\n\n'
+    'Android TV API 36 at 1920×1080 and 320 dpi. Each build starts from the same seeded favorites and Continue Watching fixture, then receives the same six D-pad moves with a 1.9-second settle interval. Values are diagnostic evidence, not a device-independent benchmark.\n\n'
+    '| Build | Total PSS (KB) | Frames rendered | Janky frames | 99th percentile (ms) |\n'
+    '| --- | ---: | ---: | ---: | ---: |\n'
+    f"| Base | {before['pss']} | {before['frames']} | {before['janky']} | {before['tail']} |\n"
+    f"| Head | {after['pss']} | {after['frames']} | {after['janky']} | {after['tail']} |\n"
+)
 PY
 git rev-parse HEAD > "$output/tested-commit.txt"
 printf '%s\n' 'Android TV API 36 emulator. Captured UI sizes: 1280x720 at 213 dpi, 1920x1080 at 320 dpi, and 3840x2160 at 640 dpi, preserving a comparable TV layout scale. Coral/Ocean/Mint/Mono are synthetic demo apps, not third-party services. Scenery is the native fallback; location is unset. Screenshots and recording are actual app captures.' > "$output/README.txt"

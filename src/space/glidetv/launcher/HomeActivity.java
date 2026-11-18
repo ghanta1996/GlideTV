@@ -24,6 +24,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     private LinearLayout page, favoriteRow, library, watchRow, watchSection;
     private final java.util.concurrent.ExecutorService artwork=Executors.newSingleThreadExecutor();
     private final android.util.LruCache<String,Bitmap> artCache=new android.util.LruCache<String,Bitmap>(2*1024*1024){protected int sizeOf(String k,Bitmap b){return b.getByteCount();}};
+    private volatile int artworkGeneration;
     private final android.database.ContentObserver watchChanges=new android.database.ContentObserver(handler){public void onChange(boolean self){if(active)loadWatchNext();}};
     private int watchGeneration=0;
     private HorizontalScrollView appStrip, watchStrip;
@@ -46,7 +47,6 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     private int weatherCode=0;
     private boolean weatherIsDay=true;
     private TextView weather, weatherDetail, weatherSymbol, weatherStats, weatherRain;
-    private final Runnable trimIdle=()->worker.execute(()->System.gc());
     private String selectedPkg, watchFingerprint="", renderedWatchKey="";
     private final ArrayList<WatchHolder> watchPool=new ArrayList<>();
     private final ArrayList<WatchItem> watchItems=new ArrayList<>();
@@ -129,7 +129,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     }
     @Override public void onResume(){super.onResume();active=true;if(appUpdater!=null)appUpdater.onResume();weatherLocation.onResume();handler.removeCallbacks(ticker);ticker.run();meters.start();connectivity.start();if(weatherLocation.configured()&&!prefs.getBoolean("connection_permissions_prompted",false)){prefs.edit().putBoolean("connection_permissions_prompted",true).apply();connectivity.requestInitialStatusPermissions(43);}backdrop.setRunning(true);if(!loaded)loadApps();hideWatch();handler.removeCallbacks(revealWatch);handler.postDelayed(revealWatch,WATCH_DWELL);loadWatchNext();refreshWeather();maybeSetupLocation();}
     @Override public void onPause(){super.onPause();active=false;handler.removeCallbacks(revealWatch);hideWatch();if(dockMagnify!=null)dockMagnify.end();handler.removeCallbacks(ticker);meters.stop();connectivity.stop();backdrop.setRunning(false);}
-    @Override public void onDestroy(){super.onDestroy();if(appUpdater!=null)appUpdater.close();weatherLocation.close();scenePacks.close();handler.removeCallbacksAndMessages(null);unregisterReceiver(changes);backdrop.dispose();getContentResolver().unregisterContentObserver(watchChanges);if(mobileControl!=null)mobileControl.stop();worker.shutdownNow();artwork.shutdownNow();}
+    @Override public void onDestroy(){super.onDestroy();artworkGeneration++;if(appUpdater!=null)appUpdater.close();weatherLocation.close();scenePacks.close();handler.removeCallbacksAndMessages(null);unregisterReceiver(changes);backdrop.dispose();getContentResolver().unregisterContentObserver(watchChanges);if(mobileControl!=null)mobileControl.stop();worker.shutdownNow();artwork.shutdownNow();artCache.evictAll();icons.clear();}
     @Override public void onBackPressed(){if(movingPkg!=null){finishMove(false);return;}if(firstApp!=null)firstApp.requestFocus();}
     @Override protected void onNewIntent(Intent i){super.onNewIntent(i);if(firstApp!=null)firstApp.requestFocus();}
     String localTime(String pattern,Date now){SimpleDateFormat f=new SimpleDateFormat(pattern,Locale.getDefault());f.setTimeZone(TimeZone.getTimeZone(weatherLocation.timezone()));return f.format(now);}
@@ -176,7 +176,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         FrameLayout root=new FrameLayout(this);backdrop=new Atmosphere(this);root.addView(backdrop,new FrameLayout.LayoutParams(-1,-1));
         page=column();page.setPadding(dp(40),dp(18),dp(40),dp(12));page.setClipChildren(false);root.addView(page,new FrameLayout.LayoutParams(-1,-1));setContentView(root);
         LinearLayout top=row();
-        meters=new UsageMeters(this);meters.setOnRamClickListener(v->new RamDialog(this,()->{artCache.evictAll();handler.removeCallbacks(trimIdle);handler.postDelayed(trimIdle,600);},icons,pkg->{App owner=app(pkg);return owner==null?pkg:owner.label;}));top.addView(meters);connectivity=new ConnectivityStatus(this,(permission,requestCode)->requestPermissions(new String[]{permission},requestCode));top.addView(connectivity);top.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));LinearLayout.LayoutParams remoteLp=new LinearLayout.LayoutParams(dp(96),dp(32));remoteLp.setMarginEnd(dp(8));top.addView(remoteShortcut(),remoteLp);libraryButton=button("App library",()->showLibrary());settingsButton=button("Settings",()->options());top.addView(libraryButton);top.addView(settingsButton);page.addView(top,new LinearLayout.LayoutParams(-1,dp(32)));gap(page,12);
+        meters=new UsageMeters(this);meters.setOnRamClickListener(v->new RamDialog(this,artCache::evictAll,icons,pkg->{App owner=app(pkg);return owner==null?pkg:owner.label;}));top.addView(meters);connectivity=new ConnectivityStatus(this,(permission,requestCode)->requestPermissions(new String[]{permission},requestCode));top.addView(connectivity);top.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));LinearLayout.LayoutParams remoteLp=new LinearLayout.LayoutParams(dp(96),dp(32));remoteLp.setMarginEnd(dp(8));top.addView(remoteShortcut(),remoteLp);libraryButton=button("App library",()->showLibrary());settingsButton=button("Settings",()->options());top.addView(libraryButton);top.addView(settingsButton);page.addView(top,new LinearLayout.LayoutParams(-1,dp(32)));gap(page,12);
         LinearLayout hero=row();LinearLayout time=column();clock=text("",56,ink);clock.setTypeface(android.graphics.Typeface.create("sans-serif-light",0));date=text("",15,Color.WHITE);time.addView(clock);gap(time,3);time.addView(date);hero.addView(time,new LinearLayout.LayoutParams(dp(235),-2));
         weatherSymbol=text("◌",43,0xffffd695);hero.addView(weatherSymbol);LinearLayout weatherBox=column();weatherBox.setGravity(Gravity.START);weather=text("Set your location",28,ink);weatherDetail=text("Loading weather…",14,Color.WHITE);weatherBox.addView(weather);gap(weatherBox,5);weatherBox.addView(weatherDetail);gap(weatherBox,5);weatherStats=text("",13,Color.WHITE);weatherRain=text("",13,Color.WHITE);weatherBox.addView(weatherStats);gap(weatherBox,4);weatherBox.addView(weatherRain);for(TextView detail:new TextView[]{date,weatherDetail,weatherStats,weatherRain})detail.setShadowLayer(dp(.7f),0,dp(.5f),0x90000b19);LinearLayout.LayoutParams wp=new LinearLayout.LayoutParams(dp(420),-2);wp.setMarginStart(dp(16));hero.addView(weatherBox,wp);page.addView(hero,new LinearLayout.LayoutParams(-1,dp(110)));gap(page,13);
         page.addView(new View(this),new LinearLayout.LayoutParams(1,0,1));
@@ -423,14 +423,13 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     void renderSelectedWatch(){
         App selected=app(selectedPkg);if(selected==null)return;String key=watchKey(selectedPkg);if(key.equals(renderedWatchKey))return;renderedWatchKey=key;
         ArrayList<WatchItem> visible=new ArrayList<>();for(WatchItem w:watchItems)if(selectedPkg.equals(w.pkg))visible.add(w);
-        int limit=Math.min(Math.min(12,visible.size()),watchFit());
+        int generation=++artworkGeneration,limit=Math.min(Math.min(12,visible.size()),watchFit());
         watchRow.removeAllViews();watchStrip.scrollTo(0,0);watchRow.setAlpha(1);
-        if(visible.isEmpty()){watchHasItems=false;bubbleOut();return;}
+        if(visible.isEmpty()){for(WatchHolder unused:watchPool){unused.item=null;unused.image.setTag("");unused.image.setImageDrawable(null);}watchHasItems=false;bubbleOut();return;}
         watchHasItems=true;
-        for(int n=0;n<limit;n++){if(n>=watchPool.size())watchPool.add(makeWatchCard());WatchHolder holder=watchPool.get(n);bindWatchCard(holder,visible.get(n));watchRow.addView(holder.frame);}
+        for(int n=0;n<limit;n++){if(n>=watchPool.size())watchPool.add(makeWatchCard());WatchHolder holder=watchPool.get(n);bindWatchCard(holder,visible.get(n),generation);watchRow.addView(holder.frame);}
         for(int n=limit;n<watchPool.size();n++){WatchHolder unused=watchPool.get(n);unused.item=null;unused.image.setTag("");unused.image.setImageDrawable(null);}
         reaimBubble();
-        handler.removeCallbacks(trimIdle);handler.postDelayed(trimIdle,1600);
     }
     void maybeSetupLocation(){if(!weatherLocation.configured()&&!prefs.getBoolean("location_prompted",false)&&!locationPromptScheduled){locationPromptScheduled=true;handler.postDelayed(()->{locationPromptScheduled=false;if(active&&!isDestroyed()){prefs.edit().putBoolean("location_prompted",true).apply();weatherLocation.showChooser();}},800);}}
     void chooseWeatherCity(){new AlertDialog.Builder(this).setTitle("Location & scenery").setItems(new String[]{"Set weather location", "Refresh downloaded scenery"},(d,n)->{if(n==0)weatherLocation.showChooser();else if(weatherLocation.configured()){toast("Checking scenery packs…");scenePacks.ensure(weatherLocation.latitude(),weatherLocation.longitude(),true,()->{backdrop.reloadScene();toast("Scenery is ready");});}else weatherLocation.showChooser();}).setNegativeButton("Close",null).show();}
@@ -489,7 +488,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         });
     }
     void watchEmpty(String title,String subtitle,boolean permission){
-        watchRow.removeAllViews();watchHasItems=true;reaimBubble();LinearLayout box=column();box.setGravity(Gravity.CENTER_VERTICAL);box.setPadding(dp(4),dp(6),dp(4),dp(6));
+        artworkGeneration++;for(WatchHolder unused:watchPool){unused.item=null;unused.image.setTag("");unused.image.setImageDrawable(null);}watchRow.removeAllViews();watchHasItems=true;reaimBubble();LinearLayout box=column();box.setGravity(Gravity.CENTER_VERTICAL);box.setPadding(dp(4),dp(6),dp(4),dp(6));
         TextView t=text(title,15,ink);t.setTypeface(android.graphics.Typeface.create("sans-serif-light",0));box.addView(t);gap(box,5);box.addView(text(subtitle,11,0xffc0cce1));
         if(permission){gap(box,6);box.addView(button("Enable Continue Watching",()->requestPermissions(new String[]{"android.permission.READ_TV_LISTINGS"},40)));}
         watchRow.addView(box,new LinearLayout.LayoutParams(-2,dp(100)));
@@ -514,25 +513,26 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
             v.animate().cancel();v.animate().scaleX(f?1.06f:1f).scaleY(f?1.06f:1f).setDuration(180).setInterpolator(new android.view.animation.DecelerateInterpolator(1.4f)).start();});
         card.setOnClickListener(v->{WatchItem w=holder.item;if(w==null)return;try{Intent i=Intent.parseUri(w.intent,Intent.URI_INTENT_SCHEME);i.setPackage(w.pkg);i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);open(i);}catch(Exception e){toast("This app\u2019s resume link is unavailable");}});return holder;
     }
-    void bindWatchCard(WatchHolder holder,WatchItem item){
+    void bindWatchCard(WatchHolder holder,WatchItem item,int generation){
         holder.item=item;App owner=app(item.pkg);String name=owner==null?item.pkg:owner.label;
         holder.title.setText(item.title);holder.title.setTextColor(holder.frame.hasFocus()?Color.WHITE:0xffc3d2e4);
         holder.done=item.duration>0?Math.min(1f,Math.max(0f,item.position/(float)item.duration)):0f;
         holder.accent=owner==null?IconPalette.NEUTRAL:owner.accent;
         holder.rim.set(holder.done,holder.frame.hasFocus(),holder.accent);
-        holder.frame.setContentDescription("Resume "+item.title+" in "+name);holder.image.setTag(item.art);holder.image.setImageDrawable(null);loadArtwork(item.art,holder.image);
+        holder.frame.setContentDescription("Resume "+item.title+" in "+name);holder.image.setTag(item.art);holder.image.setImageDrawable(null);loadArtwork(item.art,holder.image,generation);
     }
-    void loadArtwork(String uri,ImageView target){
+    void loadArtwork(String uri,ImageView target,int generation){
         if(uri==null||uri.isEmpty())return;Bitmap cached=artCache.get(uri);if(cached!=null){target.setImageBitmap(cached);return;}
         java.lang.ref.WeakReference<ImageView> destination=new java.lang.ref.WeakReference<>(target);
         artwork.execute(()->{try{
+            if(generation!=artworkGeneration)return;
             android.net.Uri u=android.net.Uri.parse(uri);java.io.InputStream stream;
             if("https".equals(u.getScheme())){java.net.URLConnection connection=new java.net.URL(uri).openConnection();connection.setConnectTimeout(4000);connection.setReadTimeout(4000);stream=connection.getInputStream();}
             else if("content".equals(u.getScheme())||"android.resource".equals(u.getScheme()))stream=getContentResolver().openInputStream(u);else return;
-            if(stream==null)return;byte[] data;try(java.io.InputStream in=stream;java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){byte[] buf=new byte[8192];int n;while((n=in.read(buf))!=-1){if(out.size()+n>2*1024*1024)return;out.write(buf,0,n);}data=out.toByteArray();}
+            if(stream==null)return;byte[] data;try(java.io.InputStream in=stream;java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){byte[] buf=new byte[8192];int n;while((n=in.read(buf))!=-1){if(generation!=artworkGeneration||out.size()+n>2*1024*1024)return;out.write(buf,0,n);}data=out.toByteArray();}
             BitmapFactory.Options bounds=new BitmapFactory.Options();bounds.inJustDecodeBounds=true;BitmapFactory.decodeByteArray(data,0,data.length,bounds);if(bounds.outWidth<1||bounds.outHeight<1)return;
             BitmapFactory.Options opts=new BitmapFactory.Options();opts.inSampleSize=1;while(bounds.outWidth/opts.inSampleSize>720||bounds.outHeight/opts.inSampleSize>720)opts.inSampleSize*=2;opts.inPreferredConfig=Bitmap.Config.HARDWARE;
-            Bitmap bitmap=BitmapFactory.decodeByteArray(data,0,data.length,opts);if(bitmap!=null){artCache.put(uri,bitmap);handler.post(()->{ImageView image=destination.get();if(!isDestroyed()&&image!=null&&uri.equals(image.getTag()))image.setImageBitmap(bitmap);});}
+            Bitmap bitmap=BitmapFactory.decodeByteArray(data,0,data.length,opts);if(bitmap!=null&&generation==artworkGeneration){artCache.put(uri,bitmap);handler.post(()->{ImageView image=destination.get();if(!isDestroyed()&&generation==artworkGeneration&&image!=null&&uri.equals(image.getTag()))image.setImageBitmap(bitmap);});}
         }catch(Exception ignored){}});
     }
     void toast(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
