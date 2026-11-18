@@ -2,11 +2,12 @@
 # Actual runtime captures with clearly identified, synthetic app fixtures.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+adb() { "$SDK/platform-tools/adb" "$@"; }
 if [[ "$(adb shell getprop ro.kernel.qemu | tr -d '\r')" != 1 ]]; then
   echo 'UI captures require a disposable Android emulator; refusing to alter a real device.' >&2
   exit 1
 fi
-SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
 BT="$SDK/build-tools/35.0.0"
 JAR="$SDK/platforms/android-36/android.jar"
 output="${1:-build/visual-review}"
