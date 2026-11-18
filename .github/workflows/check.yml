@@ -18,6 +18,9 @@ jobs:
     timeout-minutes: 25
     env:
       ANDROID_AVD_HOME: /tmp/glide-review-avd
+      ANDROID_USER_HOME: /tmp/glide-android-user
+      ANDROID_EMULATOR_HOME: /tmp/glide-android-user
+      ADB_VENDOR_KEYS: /tmp/glide-android-user/adbkey
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -53,7 +56,9 @@ jobs:
         run: |
           sudo chmod 666 /dev/kvm
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "emulator" "system-images;android-36;android-tv;x86_64"
-          mkdir -p "$ANDROID_AVD_HOME"
+          mkdir -p "$ANDROID_AVD_HOME" "$ANDROID_USER_HOME"
+          adb keygen "$ADB_VENDOR_KEYS"
+          adb start-server
           echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n glide-review -k "system-images;android-36;android-tv;x86_64" --force
           "$ANDROID_HOME/emulator/emulator" -list-avds | grep -Fx glide-review
           "$ANDROID_HOME/emulator/emulator" -avd glide-review -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 3072 -cores 2 > build/emulator.log 2>&1 &

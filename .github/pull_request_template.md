@@ -1,4 +1,4 @@
-Implementation written by Codex at Harsha's request. <!-- Keep only when applicable. -->
+<!-- Disclose substantive AI implementation here when applicable. Do not attribute human or other contributors' work to Codex. -->
 
 ## Change
 
