@@ -2,6 +2,12 @@
 
 App releases use semantic versions and an increasing Android version code. Scene packs have their own [changelog](scenes/CHANGELOG.md) and can be published independently.
 
+## 4.6.3
+
+- Stop forcing a full garbage collection after each Continue Watching render.
+- Discard artwork and scenery loads when their requesting screen state has been replaced or destroyed.
+- Record comparable Home memory and frame-rendering evidence for visual pull requests.
+
 ## 4.6.2
 
 - Keep D-pad focus deterministic between the top controls, Continue Watching, and the dock.
