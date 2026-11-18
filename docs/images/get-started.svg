@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="240" viewBox="0 0 1080 240" role="img" aria-labelledby="title desc">
+  <title id="title">Three steps to your Glide home</title>
+  <desc id="desc">Download and install the APK. Choose your city for local weather and scenery. Set Glide as your TV's Home and pin your apps.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#12243a"/><stop offset="1" stop-color="#0b1421"/></linearGradient>
+    <marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0L7 3.5L0 7" fill="none" stroke="#91b9c5" stroke-width="1.4"/></marker>
+  </defs>
+  <rect width="1080" height="240" rx="24" fill="url(#bg)"/>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <g fill="#172b40" stroke="#3a536b"><rect x="24" y="24" width="320" height="192" rx="18"/><rect x="380" y="24" width="320" height="192" rx="18"/><rect x="736" y="24" width="320" height="192" rx="18"/></g>
+    <g stroke="#91b9c5" stroke-width="2" marker-end="url(#arrow)"><path d="M352 120H370"/><path d="M708 120H726"/></g>
+    <g fill="#a9e4ca" font-size="12" letter-spacing="1.8"><text x="48" y="54">01 / INSTALL</text><text x="404" y="54">02 / PERSONALIZE</text><text x="760" y="54">03 / ENJOY</text></g>
+    <g fill="none" stroke="#a9e4ca" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M68 77V108M57 97L68 108L79 97M48 113V120H88V113"/>
+      <path d="M424 77C410 77 404 88 408 98C412 107 424 119 424 119C424 119 436 107 440 98C444 88 438 77 424 77Z"/><circle cx="424" cy="92" r="5"/>
+      <path d="M760 96L782 77L804 96M765 93V119H799V93M777 119V105H787V119"/>
+    </g>
+    <g fill="#f1f6fa" font-size="22" font-weight="bold"><text x="48" y="158">Download Glide</text><text x="404" y="158">Choose your city</text><text x="760" y="158">Make it Home</text></g>
+    <g fill="#bfcedd" font-size="15"><text x="48" y="187">Install the APK on your Android TV.</text><text x="404" y="187">Local weather. Scenery that feels yours.</text><text x="760" y="187">Pin your apps and start watching.</text></g>
+  </g>
+</svg>
