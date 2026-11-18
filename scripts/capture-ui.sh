@@ -48,8 +48,6 @@ for name in coral ocean mint mono; do
   adb install -r "$fixture/demo.apk"
 done
 
-adb root
-adb wait-for-device
 adb shell wm size 1920x1080
 adb shell wm density 320
 adb shell settings put system accelerometer_rotation 0
@@ -61,7 +59,7 @@ adb shell wm dismiss-keyguard
 
 seed_home() {
   adb shell am force-stop "$app_id"
-  adb shell mkdir -p "/data/user/0/$app_id/shared_prefs"
+  adb shell run-as "$app_id" mkdir -p shared_prefs
   cat > build/visual-fixtures/home.xml <<'XML'
 <?xml version='1.0' encoding='utf-8' standalone='yes' ?>
 <map>
@@ -70,10 +68,7 @@ seed_home() {
   <boolean name="connection_permissions_prompted" value="true" />
 </map>
 XML
-  adb push build/visual-fixtures/home.xml "/data/user/0/$app_id/shared_prefs/home.xml"
-  app_uid="$(adb shell stat -c %u "/data/user/0/$app_id" | tr -d '\r')"
-  adb shell chown -R "$app_uid:$app_uid" "/data/user/0/$app_id/shared_prefs"
-  adb shell restorecon -R "/data/user/0/$app_id/shared_prefs"
+  adb shell -T "run-as $app_id sh -c 'cat > shared_prefs/home.xml'" < build/visual-fixtures/home.xml
   adb shell pm grant "$app_id" android.permission.READ_TV_LISTINGS || true
   adb shell am start -W -n "$app_id/.HomeActivity"
   sleep 4
@@ -91,7 +86,7 @@ if [[ -n "${VISUAL_BASE_APK:-}" ]]; then
   capture before
   adb uninstall "$app_id"
 fi
-adb install -r build/GlideTV.apk
+adb install -r "${VISUAL_HEAD_APK:-build/GlideTV.apk}"
 seed_home
 capture after-coral
 for name in ocean mint mono; do

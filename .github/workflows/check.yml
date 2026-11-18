@@ -49,8 +49,15 @@ jobs:
         run: |
           git fetch --depth=1 origin "$VISUAL_BASE_SHA"
           git worktree add --detach build/visual-base "$VISUAL_BASE_SHA"
-          cd build/visual-base
-          CI=false bash build.sh
+          for source in . build/visual-base; do
+            (
+              cd "$source"
+              sed -i 's/<application /<application android:debuggable="true" /' AndroidManifest.xml
+              trap 'git restore -- AndroidManifest.xml' EXIT
+              CI=false bash build.sh
+              cp build/GlideTV.apk build/GlideTV-visual.apk
+            )
+          done
       - name: Start disposable screenshot emulator
         if: github.event_name == 'pull_request'
         run: |
@@ -66,7 +73,8 @@ jobs:
       - name: Capture before and after with D-pad recording
         if: github.event_name == 'pull_request'
         env:
-          VISUAL_BASE_APK: build/visual-base/build/GlideTV.apk
+          VISUAL_BASE_APK: build/visual-base/build/GlideTV-visual.apk
+          VISUAL_HEAD_APK: build/GlideTV-visual.apk
         run: bash scripts/capture-ui.sh
       - name: Upload actual runtime visual evidence
         if: always() && github.event_name == 'pull_request'

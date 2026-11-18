@@ -46,4 +46,4 @@ After `./build.sh`, run `./scripts/test-on-device.sh <adb-serial>` for Android r
 
 Pull-request checks capture the launcher on a disposable Android TV emulator, using synthetic demo apps and no personal watch history. Download the **GlideTV-visual-review** artifact for before/after screenshots, focus states and a short recording. Inspect and embed the relevant images in the PR description; the artifact alone is not a visual review.
 
-To capture locally, start a disposable Android TV emulator, build the APK, and run `bash scripts/capture-ui.sh`. This script replaces emulator app preferences with demo data and refuses to run on a real TV. Set `VISUAL_BASE_APK` to a baseline APK to also capture the previous layout.
+To capture locally, start a disposable Android TV emulator, build a local APK with `android:debuggable="true"` on the application element in the manifest, and run `bash scripts/capture-ui.sh`. This script replaces emulator app preferences with demo data and refuses to run on a real TV. Set `VISUAL_BASE_APK` to a debuggable baseline APK to also capture the previous layout.
