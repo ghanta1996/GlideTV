@@ -16,6 +16,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      ANDROID_AVD_HOME: ${{ runner.temp }}/glide-avd
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -51,7 +53,9 @@ jobs:
         run: |
           sudo chmod 666 /dev/kvm
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "emulator" "system-images;android-36;android-tv;x86_64"
+          mkdir -p "$ANDROID_AVD_HOME"
           echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n glide-review -k "system-images;android-36;android-tv;x86_64" --force
+          "$ANDROID_HOME/emulator/emulator" -list-avds | grep -Fx glide-review
           "$ANDROID_HOME/emulator/emulator" -avd glide-review -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 3072 -cores 2 > build/emulator.log 2>&1 &
           timeout 240 bash -c 'until adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r" | grep -q 1; do sleep 2; done'
       - name: Capture before and after with D-pad recording

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="280" viewBox="0 0 1080 280" role="img" aria-labelledby="title desc">
+  <title id="title">Pair your phone once, control your TV</title>
+  <desc id="desc">With both devices on the same Wi-Fi, open Remote on Glide TV and scan its QR code with your phone. Use the browser to navigate and adjust volume, or manage apps and files. Advanced file and process controls need the optional helper.</desc>
+  <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#12243a"/><stop offset="1" stop-color="#0b1421"/></linearGradient><marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0L7 3.5L0 7" fill="none" stroke="#91b9c5" stroke-width="1.4"/></marker></defs>
+  <rect width="1080" height="280" rx="24" fill="url(#bg)"/>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="30" y="38" fill="#a9e4ca" font-size="12" letter-spacing="1.8">SAME WI-FI. NO PHONE APP REQUIRED.</text>
+    <g fill="#172b40" stroke="#3a536b"><rect x="24" y="62" width="290" height="150" rx="18"/><rect x="370" y="62" width="290" height="150" rx="18"/><rect x="744" y="62" width="312" height="64" rx="16"/><rect x="744" y="148" width="312" height="64" rx="16"/></g>
+    <g fill="none" stroke="#91b9c5" stroke-width="2" marker-end="url(#arrow)"><path d="M324 138H360"/><path d="M670 138H708V94H734"/><path d="M708 138V180H734"/></g>
+    <g fill="none" stroke="#a9e4ca" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="48" y="84" width="48" height="31" rx="4"/><path d="M63 123H81M72 115V123"/><rect x="394" y="80" width="25" height="44" rx="5"/><path d="M403 116H410"/></g>
+    <g fill="#f1f6fa" font-size="21" font-weight="bold"><text x="48" y="158">Open Remote on TV</text><text x="394" y="158">Scan with your phone</text></g>
+    <g fill="#bfcedd" font-size="15"><text x="48" y="186">Glide shows a pairing QR code.</text><text x="394" y="186">Pair in your phone's browser.</text></g>
+    <g fill="#f1f6fa" font-size="18"><text x="766" y="101">Navigate and adjust volume</text><text x="766" y="187">Install apps and manage files</text></g>
+    <text x="30" y="251" fill="#91a9bc" font-size="13">Advanced file and process controls use the optional ADB helper. See the phone remote guide.</text>
+  </g>
+</svg>
