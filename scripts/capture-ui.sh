@@ -98,13 +98,14 @@ XML
 }
 
 capture() {
+  adb exec-out screencap -p > "$output/$1.png"
   adb shell uiautomator dump /sdcard/glide-window.xml >/dev/null
   adb pull /sdcard/glide-window.xml "$output/$1.xml" >/dev/null
-  adb exec-out screencap -p > "$output/$1.png"
 }
 
 assert_focus() {
   local capture_name="$1" expected="$2"
+  sleep .5
   capture "$capture_name"
   python3 - "$output/$capture_name.xml" "$expected" <<'PY'
 import sys, xml.etree.ElementTree as ET
