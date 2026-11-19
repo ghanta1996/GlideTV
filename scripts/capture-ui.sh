@@ -69,6 +69,7 @@ adb shell wm dismiss-keyguard
 
 seed_home() {
   local visual_watch_fixture="${1:-false}"
+  local visual_night_fixture="${2:-false}"
   adb shell am force-stop "$app_id"
   adb shell run-as "$app_id" mkdir -p shared_prefs
   cat > build/visual-fixtures/home.xml <<'XML'
@@ -81,11 +82,7 @@ seed_home() {
 XML
   adb shell -T "run-as $app_id sh -c 'cat > shared_prefs/home.xml'" < build/visual-fixtures/home.xml
   adb shell pm grant "$app_id" android.permission.READ_TV_LISTINGS || true
-  if [[ "$visual_watch_fixture" == true ]]; then
-    adb shell am start -W --ez visual_watch_fixture true -n "$app_id/.HomeActivity"
-  else
-    adb shell am start -W -n "$app_id/.HomeActivity"
-  fi
+  adb shell am start -W --ez visual_watch_fixture "$visual_watch_fixture" --ez visual_night_fixture "$visual_night_fixture" -n "$app_id/.HomeActivity"
   sleep 4
 }
 
@@ -215,6 +212,9 @@ capture_resolution() {
     capture "after-$label-$name"
   done
   if [[ "$resolution" == 1920x1080 ]]; then
+    seed_home true true
+    capture "after-$label-night"
+    capture_watch_focus "after-$label-night-watch"
     seed_home true
     capture_performance "after-$label"
   fi
