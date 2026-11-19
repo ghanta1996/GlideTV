@@ -54,6 +54,7 @@ Generated scene metadata is uploaded to the `scene-catalogue` release asset, wit
 | Launcher build | `bash build.sh` |
 | Icon palette | `bash scripts/test-icon-palette.sh` |
 | Adaptive readability | `bash scripts/test-readability.sh` |
+| Music session selection | `bash scripts/test-music-selection.sh` |
 | Downloader resolution and redirects | `bash scripts/test-downloads.sh` |
 | App version policy | `python3 scripts/test_version.py` |
 | Scene archives and release rules | `python3 scripts/test_release.py` |
@@ -98,6 +99,6 @@ After a code merge, the release workflow builds and verifies the signed APK, cre
 
 ## Visual review captures
 
-Pull-request checks capture the launcher on a disposable Android TV emulator at 720p, 1080p and 4K with comparable logical TV layout scaling, using synthetic demo apps and no personal watch history. Download the **GlideTV-visual-review** artifact for before/after screenshots, focus states and a short recording. Inspect and embed the relevant images in the PR description; the artifact alone is not a visual review.
+Pull-request checks capture the launcher on a disposable Android TV emulator at 720p, 1080p and 4K with comparable logical TV layout scaling, using synthetic demo apps, synthetic music metadata and no personal history. Download the **GlideTV-visual-review** artifact for before/after screenshots, focus states and a short recording. Inspect and embed the relevant images in the PR description; the artifact alone is not a visual review.
 
 To capture locally, start a disposable Android TV emulator, build a local APK with `android:debuggable="true"` on the application element in the manifest, and run `bash scripts/capture-ui.sh`. This script replaces emulator app preferences with demo data and refuses to run on a real TV. Set `VISUAL_BASE_APK` to a debuggable baseline APK to also capture the previous layout.

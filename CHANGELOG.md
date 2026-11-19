@@ -2,6 +2,12 @@
 
 App releases use semantic versions and an increasing Android version code. Scene packs have their own [changelog](scenes/CHANGELOG.md) and can be published independently.
 
+## 4.8.0
+
+- Optionally show the active media title, artist, album and bounded album artwork on Home without adding playback controls.
+- Explain and link Android notification access, keep metadata local and stop observing media sessions whenever Home is not visible.
+- Regression-test session selection and capture the non-focusable music card at 720p, 1080p and 4K with synthetic emulator data.
+
 ## 4.7.1
 
 - Treat GitHub community issue forms as documentation-only so later template changes do not publish an unchanged APK.
