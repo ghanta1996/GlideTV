@@ -283,6 +283,12 @@ assert_focus "nav-library-first-app" "Amber demo"
 adb shell input keyevent --longpress KEYCODE_DPAD_CENTER
 sleep .5
 assert_visible "nav-library-app-options" "Uninstall app"
+press DOWN
+press DOWN
+press DOWN
+adb shell input keyevent KEYCODE_DPAD_CENTER
+sleep 1
+assert_visible "nav-library-uninstall-confirm" "Do you want to uninstall this app?"
 adb shell input keyevent KEYCODE_BACK
 sleep .5
 adb uninstall space.glidetv.preview.coral
