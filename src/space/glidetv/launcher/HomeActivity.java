@@ -45,7 +45,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     private boolean remoteActive;
     private Atmosphere backdrop;
     private int weatherCode=0;
-    private boolean weatherIsDay=true;
+    private boolean weatherIsDay=true, visualNightFixture;
     private TextView weather, weatherDetail, weatherSymbol, weatherStats, weatherRain;
     private String selectedPkg, watchFingerprint="", renderedWatchKey="";
     private final ArrayList<WatchHolder> watchPool=new ArrayList<>();
@@ -110,11 +110,11 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     }
     private final Runnable ticker=new Runnable(){public void run(){
         if(clock!=null){Date now=new Date();clock.setText(localTime("h:mm",now));date.setText(localTime("EEEE, d MMMM",now));}
-        if(active){if(appUpdater!=null)appUpdater.checkIfDue();if(backdrop!=null){backdrop.setConditions(weatherCode,weatherIsDay,Calendar.getInstance().get(Calendar.HOUR_OF_DAY));if(weatherCode==0&&weatherSymbol!=null){boolean day=backdrop.isDaytime();weatherSymbol.setText(day?"☀":"☾");weatherSymbol.setTextColor(day?0xffffd18a:0xffd9cbff);}}refreshWeather();handler.postDelayed(this,60000-System.currentTimeMillis()%60000);}
+        if(active){if(appUpdater!=null)appUpdater.checkIfDue();if(backdrop!=null){backdrop.setConditions(weatherCode,visualNightFixture?false:weatherIsDay,visualNightFixture?23:Calendar.getInstance().get(Calendar.HOUR_OF_DAY));if(weatherCode==0&&weatherSymbol!=null){boolean day=backdrop.isDaytime();weatherSymbol.setText(day?"☀":"☾");weatherSymbol.setTextColor(day?0xffffd18a:0xffd9cbff);}}refreshWeather();handler.postDelayed(this,60000-System.currentTimeMillis()%60000);}
     }};
     private final BroadcastReceiver changes=new BroadcastReceiver(){public void onReceive(Context c,Intent i){if(active)loadApps();else loaded=false;}};
     @Override public void onCreate(Bundle b){
-        super.onCreate(b);prefs=getSharedPreferences("home",MODE_PRIVATE);weatherLocation=new WeatherLocation(this,this::locationChanged);scenePacks=new ScenePacks(this);
+        super.onCreate(b);prefs=getSharedPreferences("home",MODE_PRIVATE);weatherLocation=new WeatherLocation(this,this::locationChanged);scenePacks=new ScenePacks(this);visualNightFixture=(getApplicationInfo().flags&ApplicationInfo.FLAG_DEBUGGABLE)!=0&&getIntent().getBooleanExtra("visual_night_fixture",false);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         String saved=prefs.getString("favorites",null);
@@ -142,12 +142,12 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     void styleFocus(View v,int normal, int focused){
         v.setFocusable(true);v.setClickable(true);v.setBackground(new GlassDrawable(dp(18),false));
         v.setOnFocusChangeListener((view,has)->{
-            view.setScaleX(has?1.025f:1f);view.setScaleY(has?1.025f:1f);
             view.setBackground(new GlassDrawable(dp(18),has));
+            view.animate().cancel();view.animate().scaleX(has?1.035f:1f).scaleY(has?1.035f:1f).translationZ(dp(has?4:0)).setDuration(190).setInterpolator(new android.view.animation.PathInterpolator(.2f,.8f,.2f,1f)).start();
         });
     }
     TextView button(String name,Runnable action){TextView b=text(name,13,ink);b.setGravity(Gravity.CENTER);b.setPadding(dp(17),0,dp(17),0);styleFocus(b,0xff192934,0xff304840);b.setOnClickListener(v->action.run());LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,dp(32));lp.setMarginStart(dp(8));b.setLayoutParams(lp);return b;}
-    View remoteShortcut(){LinearLayout hit=row();remoteHit=hit;hit.setGravity(Gravity.CENTER);hit.setPadding(dp(9),0,dp(9),0);hit.setBackground(new GlassDrawable(dp(18),false));RemoteGlyph glyph=new RemoteGlyph(this);remoteGlyph=glyph;hit.addView(glyph,new LinearLayout.LayoutParams(dp(21),dp(27)));TextView label=text("Remote",12,0xffdce8f1);remoteLabel=label;label.setSingleLine(true);label.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,-2);lp.setMarginStart(dp(6));hit.addView(label,lp);hit.setFocusable(true);hit.setClickable(true);hit.setContentDescription("Glide Remote · show mobile pairing code");hit.setOnClickListener(v->showMobileControl());hit.setOnFocusChangeListener((v,focused)->{int color=remoteActive?0xff65df9b:focused?mint:0xffdce8f1;glyph.setColor(color);label.setTextColor(color);hit.setBackground(new GlassDrawable(dp(18),focused||remoteActive));v.animate().cancel();v.animate().scaleX(focused?1.05f:1f).scaleY(focused?1.05f:1f).setDuration(140).start();});return hit;}
+    View remoteShortcut(){LinearLayout hit=row();remoteHit=hit;hit.setGravity(Gravity.CENTER);hit.setPadding(dp(9),0,dp(9),0);hit.setBackground(new GlassDrawable(dp(18),false));RemoteGlyph glyph=new RemoteGlyph(this);remoteGlyph=glyph;hit.addView(glyph,new LinearLayout.LayoutParams(dp(21),dp(27)));TextView label=text("Remote",12,0xffdce8f1);remoteLabel=label;label.setSingleLine(true);label.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,-2);lp.setMarginStart(dp(6));hit.addView(label,lp);hit.setFocusable(true);hit.setClickable(true);hit.setContentDescription("Glide Remote · show mobile pairing code");hit.setOnClickListener(v->showMobileControl());hit.setOnFocusChangeListener((v,focused)->{int color=remoteActive?0xff65df9b:focused?mint:0xffdce8f1;glyph.setColor(color);label.setTextColor(color);hit.setBackground(new GlassDrawable(dp(18),focused||remoteActive));v.animate().cancel();v.animate().scaleX(focused?1.05f:1f).scaleY(focused?1.05f:1f).translationZ(dp(focused?4:0)).setDuration(190).setInterpolator(new android.view.animation.PathInterpolator(.2f,.8f,.2f,1f)).start();});return hit;}
     private void setRemoteActive(boolean value){remoteActive=value;if(remoteGlyph!=null){int color=value?0xff65df9b:0xffdce8f1;remoteGlyph.setColor(color);remoteLabel.setText(value?"Active":"Remote");remoteLabel.setTextColor(color);remoteHit.setBackground(new GlassDrawable(dp(18),value));remoteHit.setContentDescription(value?"Glide Remote · connected and active":"Glide Remote · show mobile pairing code");}}
     private final class RemoteGlyph extends View{private final android.graphics.Paint p=new android.graphics.Paint(3);private int color=0xffdce8f1;RemoteGlyph(Context c){super(c);}void setColor(int value){color=value;invalidate();}@Override protected void onDraw(Canvas c){float s=getResources().getDisplayMetrics().density,w=getWidth(),h=getHeight(),x=w*.5f,y=h*.51f;p.setColor(color);p.setStyle(android.graphics.Paint.Style.STROKE);p.setStrokeWidth(1.7f*s);p.setStrokeCap(android.graphics.Paint.Cap.ROUND);p.setStrokeJoin(android.graphics.Paint.Join.ROUND);c.drawRoundRect(w*.17f,h*.025f,w*.83f,h*.975f,6*s,6*s,p);c.drawLine(x,h*.12f,x,h*.22f,p);c.drawCircle(x,h*.29f,1.5f*s,p);c.drawCircle(x,y,6.7f*s,p);c.drawLine(x,y-3.3f*s,x,y+3.3f*s,p);c.drawLine(x-3.3f*s,y,x+3.3f*s,y,p);p.setStyle(android.graphics.Paint.Style.FILL);c.drawCircle(x-3.2f*s,h*.83f,1.25f*s,p);c.drawCircle(x+3.2f*s,h*.83f,1.25f*s,p);}}
     /** Centres the balloon on the dock icon it belongs to and puts the horn's point on that icon. */
@@ -188,7 +188,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         watchSection.setAlpha(0f);watchSection.setVisibility(View.INVISIBLE);page.addView(watchSection,new LinearLayout.LayoutParams(-1,-2));gap(page,14);
                 FrameLayout dockHost=new FrameLayout(this);dockHost.setClipChildren(false);dockHost.setClipToPadding(false);
         appStrip=new HorizontalScrollView(this);appStrip.setHorizontalScrollBarEnabled(false);appStrip.setClipToPadding(false);appStrip.setClipChildren(false);appStrip.setPadding(dp(20),dp(19),dp(20),dp(7));appStrip.setOverScrollMode(View.OVER_SCROLL_NEVER);appStrip.setSmoothScrollingEnabled(true);
-        appStrip.setBackground(new DockDrawable(dp(32),false));
+        appStrip.setBackground(new DockDrawable(dp(32),false));appStrip.setElevation(dp(5));
         favoriteRow=row();favoriteRow.setGravity(Gravity.BOTTOM);favoriteRow.setClipChildren(false);favoriteRow.setClipToPadding(false);appStrip.addView(favoriteRow);
         dockHost.addView(appStrip,new FrameLayout.LayoutParams(-2,-1,Gravity.CENTER_HORIZONTAL|Gravity.BOTTOM));page.addView(dockHost,new LinearLayout.LayoutParams(-1,dp(125)));
                 updateNotice=button("",()->appUpdater.showAvailable());updateNotice.setVisibility(View.GONE);updateNotice.setTextColor(mint);updateNotice.setContentDescription("Glide update available. Select to review and install.");FrameLayout.LayoutParams noticeLp=new FrameLayout.LayoutParams(-2,dp(34),Gravity.BOTTOM|Gravity.END);noticeLp.setMargins(0,0,dp(40),dp(12));root.addView(updateNotice,noticeLp);
@@ -284,7 +284,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         item.setOnFocusChangeListener((v,f)->{
             if(favorite){dot.animate().cancel();dot.animate().alpha(f?1f:0f).setDuration(160).start();
                 if(f){selectApp(a);magnifyDock(v);pointTail(v);}else v.post(()->{if(favoriteRow.findFocus()==null)magnifyDock(null);});}
-            else{cardGlass.setFocused(f);halo.animate().cancel();halo.animate().scaleX(f?1.16f:1f).scaleY(f?1.16f:1f).setDuration(180).setInterpolator(new android.view.animation.DecelerateInterpolator(1.4f)).start();name.setTextColor(f?Color.WHITE:0xffcbd7e9);}});
+            else{cardGlass.setFocused(f);halo.animate().cancel();halo.animate().scaleX(f?1.16f:1f).scaleY(f?1.16f:1f).translationZ(dp(f?5:0)).setDuration(210).setInterpolator(new android.view.animation.PathInterpolator(.2f,.8f,.2f,1f)).start();name.setTextColor(f?Color.WHITE:0xffcbd7e9);}});
         item.setOnClickListener(v->{if(!favorite&&libraryDialog!=null)libraryDialog.dismiss();open(a.intent);});item.setOnLongClickListener(v->{if(favorite)startMove(a);else appOptions(a,false);return true;});
         item.setOnKeyListener((v,k,e)->{if(k==KeyEvent.KEYCODE_MENU&&e.getAction()==KeyEvent.ACTION_DOWN){appOptions(a,favorite);return true;}return false;});
         return item;
@@ -510,7 +510,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         card.addView(holder.title,new LinearLayout.LayoutParams(-1,-2));
         card.setFocusable(true);card.setClickable(true);
         card.setOnFocusChangeListener((v,f)->{rim.set(holder.done,f,holder.accent);holder.title.setTextColor(f?Color.WHITE:0xffc3d2e4);
-            v.animate().cancel();v.animate().scaleX(f?1.06f:1f).scaleY(f?1.06f:1f).setDuration(180).setInterpolator(new android.view.animation.DecelerateInterpolator(1.4f)).start();});
+            v.animate().cancel();v.animate().scaleX(f?1.06f:1f).scaleY(f?1.06f:1f).translationZ(dp(f?5:0)).setDuration(210).setInterpolator(new android.view.animation.PathInterpolator(.2f,.8f,.2f,1f)).start();});
         card.setOnClickListener(v->{WatchItem w=holder.item;if(w==null)return;try{Intent i=Intent.parseUri(w.intent,Intent.URI_INTENT_SCHEME);i.setPackage(w.pkg);i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);open(i);}catch(Exception e){toast("This app\u2019s resume link is unavailable");}});return holder;
     }
     void bindWatchCard(WatchHolder holder,WatchItem item,int generation){

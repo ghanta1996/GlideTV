@@ -2,6 +2,12 @@
 
 App releases use semantic versions and an increasing Android version code. Scene packs have their own [changelog](scenes/CHANGELOG.md) and can be published independently.
 
+## 4.6.5
+
+- Refine existing glass surfaces with clearer translucency, layered highlights, and restrained depth shadows.
+- Smooth focus elevation and scaling transitions without changing D-pad behavior or adding customization.
+- Capture visual regression evidence on both light and dark scenery.
+
 ## 4.6.4
 
 - Verify that Home controls, the dock, and Continue Watching remain on-screen and non-overlapping at 720p, 1080p, and 4K.

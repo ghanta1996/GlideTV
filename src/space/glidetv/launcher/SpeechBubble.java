@@ -13,7 +13,7 @@ final class SpeechBubble extends Drawable {
     private final RectF rect = new RectF();
     private final float tailHeight;
     private float tailX = Float.NaN, radius;
-    private Shader fill, rim;
+    private Shader fill, sheen, rim;
 
     SpeechBubble(float tailHeight) { this.tailHeight = tailHeight; }
 
@@ -45,15 +45,20 @@ final class SpeechBubble extends Drawable {
             shape.op(horn, Path.Op.UNION);
         }
         fill = new LinearGradient(0, rect.top, 0, rect.bottom + tailHeight,
-                new int[]{0x6e2b3c54, 0x82111d2e, 0x8f070d18}, new float[]{0, .55f, 1}, Shader.TileMode.CLAMP);
+                new int[]{0x66425973, 0x76152235, 0x84080e19}, new float[]{0, .55f, 1}, Shader.TileMode.CLAMP);
+        sheen = new LinearGradient(0, rect.top, 0, rect.top + rect.height() * .5f,
+                new int[]{0x42ffffff, 0x00ffffff}, null, Shader.TileMode.CLAMP);
         rim = new LinearGradient(rect.left, rect.top, rect.right, rect.bottom,
-                new int[]{0xd2f1f9ff, 0x3dffffff, 0x8fb9cfe8}, new float[]{0, .5f, 1}, Shader.TileMode.CLAMP);
+                new int[]{0xe4f5fbff, 0x42ffffff, 0x9eb9d3ed}, new float[]{0, .5f, 1}, Shader.TileMode.CLAMP);
     }
 
     @Override public void draw(Canvas canvas) {
         if (fill == null) return;
         paint.setStyle(Paint.Style.FILL);
+        paint.setShader(null); paint.setColor(0x56020812);
+        canvas.save(); canvas.translate(0, 3f); canvas.drawPath(shape, paint); canvas.restore();
         paint.setShader(fill); canvas.drawPath(shape, paint);
+        paint.setShader(sheen); canvas.drawPath(shape, paint);
         paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(2f);
         paint.setShader(rim); canvas.drawPath(shape, paint);
         paint.setShader(null);
