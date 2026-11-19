@@ -17,8 +17,9 @@ public final class MusicSessions implements AutoCloseable {
     public interface Listener { void onMusicChanged(Track track); }
     public static final class Track {
         public final String title,subtitle,app;
+        public final int state;
         public final Bitmap artwork;
-        Track(String title,String subtitle,String app,Bitmap artwork){this.title=title;this.subtitle=subtitle;this.app=app;this.artwork=artwork;}
+        Track(String title,String subtitle,String app,int state,Bitmap artwork){this.title=title;this.subtitle=subtitle;this.app=app;this.state=state;this.artwork=artwork;}
     }
 
     private static final int ART_EDGE=256, ART_BYTES=2*1024*1024, INPUT_BYTES=4*1024*1024;
@@ -108,15 +109,15 @@ public final class MusicSessions implements AutoCloseable {
         if(selected==null){generation++;listener.onMusicChanged(null);return;}
         MediaController controller=owners.get(selected.key);MediaMetadata metadata=controller==null?null:controller.getMetadata();
         if(metadata==null){listener.onMusicChanged(null);return;}
-        String subtitle=MusicSelection.subtitle(selected.artist,selected.album,selected.app),uri=first(metadata,MediaMetadata.METADATA_KEY_ALBUM_ART_URI,MediaMetadata.METADATA_KEY_ART_URI,MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI),key=selected.key+"\n"+selected.title+"\n"+subtitle+"\n"+uri;
-        Bitmap cached=cache.get(key);if(cached!=null){listener.onMusicChanged(new Track(selected.title,subtitle,selected.app,cached));return;}
-        Bitmap embedded=firstBitmap(metadata,MediaMetadata.METADATA_KEY_ALBUM_ART,MediaMetadata.METADATA_KEY_ART,MediaMetadata.METADATA_KEY_DISPLAY_ICON);
-        if(embedded==null&&uri.isEmpty()){generation++;listener.onMusicChanged(new Track(selected.title,subtitle,selected.app,null));return;}
+        String subtitle=MusicSelection.subtitle(selected.artist,selected.album,selected.app),uri=first(metadata,MediaMetadata.METADATA_KEY_ART_URI,MediaMetadata.METADATA_KEY_ALBUM_ART_URI,MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI),mediaId=metadata.getString(MediaMetadata.METADATA_KEY_MEDIA_ID),key=selected.key+"\n"+selected.title+"\n"+subtitle+"\n"+(mediaId==null?"":mediaId)+"\n"+uri;
         final int request=++generation;
-        listener.onMusicChanged(new Track(selected.title,subtitle,selected.app,null));
+        Bitmap cached=cache.get(key);if(cached!=null){listener.onMusicChanged(new Track(selected.title,subtitle,selected.app,selected.state,cached));return;}
+        Bitmap embedded=firstBitmap(metadata,MediaMetadata.METADATA_KEY_ART,MediaMetadata.METADATA_KEY_ALBUM_ART,MediaMetadata.METADATA_KEY_DISPLAY_ICON);
+        if(embedded==null&&uri.isEmpty()){listener.onMusicChanged(new Track(selected.title,subtitle,selected.app,selected.state,null));return;}
+        listener.onMusicChanged(new Track(selected.title,subtitle,selected.app,selected.state,null));
         try{artwork.execute(()->{
             Bitmap bitmap=embedded==null?loadUri(uri):bounded(embedded);
-            handler.post(()->{if(closed||!started||request!=generation)return;if(bitmap!=null)cache.put(key,bitmap);listener.onMusicChanged(new Track(selected.title,subtitle,selected.app,bitmap));});
+            handler.post(()->{if(closed||!started||request!=generation)return;if(bitmap!=null)cache.put(key,bitmap);listener.onMusicChanged(new Track(selected.title,subtitle,selected.app,selected.state,bitmap));});
         });}catch(RejectedExecutionException ignored){}
     }
 

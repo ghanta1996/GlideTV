@@ -2,6 +2,14 @@
 
 App releases use semantic versions and an increasing Android version code. Scene packs have their own [changelog](scenes/CHANGELOG.md) and can be published independently.
 
+## 4.9.0
+
+- Open a selectable full-screen Ambient music view from the Home metadata card, with large live album artwork and playback information.
+- Scroll long music titles and details, show an animated playing indicator, and prevent an older artwork request from replacing a newer song.
+- Guide first-run permission setup from one place while explaining Android-managed special access that cannot be granted during installation.
+- Uninstall apps from their App library menu through Android's confirmation screen and immediately refresh favorites and the library after removal.
+- Capture the Ambient experience and expanded focus paths with actual Android TV visual regression evidence.
+
 ## 4.8.1
 
 - Keep the favorites dock aligned when its contents exceed the screen, with smooth horizontal focus scrolling instead of an oversized clipped surface.
