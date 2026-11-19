@@ -242,12 +242,12 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         renderFavorites();
     }
     void renderFavorites(){
-        View old=getCurrentFocus();String focus=restoreFocus!=null?restoreFocus:old!=null&&old.getTag() instanceof String?(String)old.getTag():null;restoreFocus=null;
+        View old=getCurrentFocus();boolean focusDock=firstApp==null||restoreFocus!=null||old==null||isInside(old,favoriteRow);String focus=restoreFocus!=null?restoreFocus:old!=null&&old.getTag() instanceof String?(String)old.getTag():null;restoreFocus=null;
         favoriteRow.removeAllViews();firstApp=null;
         dockCentre=-1;for(String p:favorites){App a=app(p);if(a==null)continue;View item=tile(a,true);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(112),dp(99));favoriteRow.addView(item,lp);if(firstApp==null)firstApp=item;}
         if(firstApp==null){selectedPkg=null;favoriteRow.addView(button("Choose favorites",()->showLibrary()));}
         sizeDockViewport();
-        View target=focus==null?null:favoriteRow.findViewWithTag(focus);if(target!=null)target.requestFocus();else if(firstApp!=null){firstApp.requestFocus();selectApp(appsForFirstFavorite());}
+        View target=focus==null?null:favoriteRow.findViewWithTag(focus);if(focusDock&&target!=null)target.requestFocus();else if(focusDock&&firstApp!=null){firstApp.requestFocus();selectApp(appsForFirstFavorite());}
     }
     void sizeDockViewport(){
         if(dockHost==null||appStrip==null||favoriteRow==null)return;
