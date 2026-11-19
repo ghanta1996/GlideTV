@@ -1,0 +1,74 @@
+name: Bug report
+description: Report a reproducible GlideTV problem
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve GlideTV. Remove private information before submitting.
+  - type: dropdown
+    id: device_type
+    attributes:
+      label: Device type
+      options:
+        - Android TV or Google TV device
+        - Android TV emulator
+        - Other Android TV-compatible device
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device model
+      placeholder: For example, Chromecast with Google TV 4K
+    validations:
+      required: true
+  - type: input
+    id: android_version
+    attributes:
+      label: Android or Google TV version
+      placeholder: For example, Android TV 14
+    validations:
+      required: true
+  - type: input
+    id: glide_version
+    attributes:
+      label: GlideTV version
+      description: Use the installed release version, not only the APK filename.
+      placeholder: For example, 4.7.1
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the starting state, remote or D-pad actions, and how often the problem occurs.
+      placeholder: |
+        1. Open Home with ...
+        2. Press ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots, recording, or logs
+      description: Attach visual evidence for display or focus problems. Paste only relevant logs.
+  - type: checkboxes
+    id: redaction
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed pairing codes, tokens, network addresses, viewing history, and other private information.
+          required: true

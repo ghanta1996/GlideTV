@@ -4,14 +4,14 @@ GlideTV is a lightweight, native Android TV launcher. Contributions from outside
 
 ## Report a bug
 
-[Open an issue](https://github.com/ghanta1996/GlideTV/issues/new) with:
+[Open a structured bug report](https://github.com/ghanta1996/GlideTV/issues/new?template=bug.yml) with:
 
 - TV model, Android/Google TV version and Glide version.
 - Steps to reproduce, expected behavior and what happened instead.
 - A screenshot or short recording for display/focus problems, with private information removed.
 - Relevant logs, if available. Remove tokens, pairing codes, network addresses and viewing history.
 
-For a feature or larger redesign, start an issue explaining the user need and proposed behavior so scope can be discussed before implementation.
+For a feature or larger redesign, use the [feature request form](https://github.com/ghanta1996/GlideTV/issues/new?template=feature.yml) to explain the problem, benefit, proposed behavior and acceptance criteria before implementation.
 
 ## Make a change
 
@@ -40,7 +40,22 @@ Show relevant focus states, transitions and empty states. Include the tested com
 | Icon colors | `bash scripts/test-icon-palette.sh` |
 | APK download handling | `bash scripts/test-downloads.sh` |
 | Version policy and release tooling | `python3 scripts/test_version.py`, `python3 scripts/test_release.py` |
+| Adaptive readability | `bash scripts/test-readability.sh` |
 | Documentation | Check links and preview diagrams/images |
+
+## Test matrix
+
+Choose the smallest matrix that covers the changed behavior and report exactly what ran.
+
+| Change | Minimum coverage |
+| --- | --- |
+| Build, parsing or release policy | Local automated checks plus required GitHub checks |
+| Launcher navigation or focus | Android TV emulator or device with D-pad verification |
+| Responsive or visual layout | Actual 720p, 1080p and 4K captures from the CI artifact |
+| Scenery, glass or text readability | Light and dark scenery, relevant focus states and the transition recording |
+| Permissions, network, installation or playback metadata | A compatible real device when the emulator cannot provide the platform service; document unavailable coverage |
+
+Do not include account data or personal viewing information in test fixtures. Prefer the repository's synthetic demo apps and seeded Continue Watching data.
 
 If you could not run a check, say so and explain the limitation. Do not describe an untested result as verified.
 
