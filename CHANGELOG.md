@@ -6,6 +6,7 @@ App releases use semantic versions and an increasing Android version code. Scene
 
 - Keep the favorites dock aligned when its contents exceed the screen, with smooth horizontal focus scrolling instead of an oversized clipped surface.
 - Show every Continue Watching title for the selected app in a horizontally scrollable glass row instead of limiting the row to the first four visible cards.
+- Keep Glide and active foreground/service apps running when Clear RAM releases safe cached app processes through the optional ADB helper.
 - Regression-test dense favorites and navigation beyond the first Continue Watching viewport on Android TV.
 
 ## 4.8.0
