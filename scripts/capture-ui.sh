@@ -98,9 +98,9 @@ XML
 }
 
 capture() {
-  adb exec-out screencap -p > "$output/$1.png"
   adb shell uiautomator dump /sdcard/glide-window.xml >/dev/null
   adb pull /sdcard/glide-window.xml "$output/$1.xml" >/dev/null
+  adb exec-out screencap -p > "$output/$1.png"
 }
 
 assert_focus() {
