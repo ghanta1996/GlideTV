@@ -287,7 +287,7 @@ press DOWN
 press DOWN
 press DOWN
 adb shell input keyevent KEYCODE_DPAD_CENTER
-sleep 1
+sleep 3
 assert_visible "nav-library-uninstall-confirm" "Do you want to uninstall this app?"
 adb shell input keyevent KEYCODE_BACK
 sleep .5
