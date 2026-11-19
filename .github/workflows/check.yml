@@ -31,6 +31,8 @@ jobs:
           java-version: '17'
       - name: Test icon palette
         run: bash scripts/test-icon-palette.sh
+      - name: Test adaptive readability
+        run: bash scripts/test-readability.sh
       - name: Install Android build tools
         run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0"'
       - name: Build and verify development APK

@@ -44,6 +44,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     private TextView remoteLabel;
     private boolean remoteActive;
     private Atmosphere backdrop;
+    private ReadabilityOverlay readabilityOverlay;
     private int weatherCode=0;
     private boolean weatherIsDay=true, visualNightFixture;
     private TextView weather, weatherDetail, weatherSymbol, weatherStats, weatherRain;
@@ -110,7 +111,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     }
     private final Runnable ticker=new Runnable(){public void run(){
         if(clock!=null){Date now=new Date();clock.setText(localTime("h:mm",now));date.setText(localTime("EEEE, d MMMM",now));}
-        if(active){if(appUpdater!=null)appUpdater.checkIfDue();if(backdrop!=null){backdrop.setConditions(weatherCode,visualNightFixture?false:weatherIsDay,visualNightFixture?23:Calendar.getInstance().get(Calendar.HOUR_OF_DAY));if(weatherCode==0&&weatherSymbol!=null){boolean day=backdrop.isDaytime();weatherSymbol.setText(day?"☀":"☾");weatherSymbol.setTextColor(day?0xffffd18a:0xffd9cbff);}}refreshWeather();handler.postDelayed(this,60000-System.currentTimeMillis()%60000);}
+        if(active){if(appUpdater!=null)appUpdater.checkIfDue();if(backdrop!=null){backdrop.setConditions(weatherCode,visualNightFixture?false:weatherIsDay,visualNightFixture?23:Calendar.getInstance().get(Calendar.HOUR_OF_DAY));readabilityOverlay.setSceneLuminance(backdrop.readabilityLuminance());if(weatherCode==0&&weatherSymbol!=null){boolean day=backdrop.isDaytime();weatherSymbol.setText(day?"☀":"☾");weatherSymbol.setTextColor(day?0xffffd18a:0xffd9cbff);}}refreshWeather();handler.postDelayed(this,60000-System.currentTimeMillis()%60000);}
     }};
     private final BroadcastReceiver changes=new BroadcastReceiver(){public void onReceive(Context c,Intent i){if(active)loadApps();else loaded=false;}};
     @Override public void onCreate(Bundle b){
@@ -173,7 +174,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     void reaimBubble(){if(watchSection==null||favoriteRow==null)return;watchSection.post(()->{View focus=favoriteRow.findFocus();if(focus==null)return;pointTail(focus);bubbleIn();});}
     void buildShell(){
         getWindow().setBackgroundDrawable(new ColorDrawable(0xff090f21));
-        FrameLayout root=new FrameLayout(this);backdrop=new Atmosphere(this);root.addView(backdrop,new FrameLayout.LayoutParams(-1,-1));
+        FrameLayout root=new FrameLayout(this);backdrop=new Atmosphere(this);root.addView(backdrop,new FrameLayout.LayoutParams(-1,-1));readabilityOverlay=new ReadabilityOverlay(this);root.addView(readabilityOverlay,new FrameLayout.LayoutParams(-1,-1));
         page=column();page.setPadding(dp(40),dp(18),dp(40),dp(12));page.setClipChildren(false);root.addView(page,new FrameLayout.LayoutParams(-1,-1));setContentView(root);
         LinearLayout top=row();
         meters=new UsageMeters(this);meters.setOnRamClickListener(v->new RamDialog(this,artCache::evictAll,icons,pkg->{App owner=app(pkg);return owner==null?pkg:owner.label;}));top.addView(meters);connectivity=new ConnectivityStatus(this,(permission,requestCode)->requestPermissions(new String[]{permission},requestCode));top.addView(connectivity);top.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));LinearLayout.LayoutParams remoteLp=new LinearLayout.LayoutParams(dp(96),dp(32));remoteLp.setMarginEnd(dp(8));top.addView(remoteShortcut(),remoteLp);libraryButton=button("App library",()->showLibrary());settingsButton=button("Settings",()->options());top.addView(libraryButton);top.addView(settingsButton);page.addView(top,new LinearLayout.LayoutParams(-1,dp(32)));gap(page,12);
@@ -445,7 +446,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         weather.setText(weatherNumber(data,"temperature_2m","%.0f")+"°  "+city);weatherDetail.setText(condition+" · Feels like "+weatherNumber(data,"apparent_temperature","%.0f")+"°"+(cached?" · cached":""));
         weatherStats.setText("Humidity "+weatherNumber(data,"relative_humidity_2m","%.0f")+"%  ·  UV "+weatherNumber(data,"uv_index","%.1f")+"  ·  AQI "+weatherNumber(data,"us_aqi","%.0f"));
         weatherRain.setText("Rain "+weatherNumber(data,"precipitation","%.1f")+" mm  ·  Chance "+weatherNumber(data,"precipitation_probability","%.0f")+"%  ·  Wind "+weatherNumber(data,"wind_speed_10m","%.0f")+" km/h");
-        backdrop.setTimeZone(data.optString("timezone",weatherLocation.timezone()));weatherSymbol.setText(code==0?(weatherIsDay?"☀":"☾"):(code>=71&&code<=77)||code==85||code==86?"❄":code<=3?"☁":code<=67?"☂":"☁");weatherSymbol.setTextColor(code==0?(weatherIsDay?0xffffd18a:0xffd9cbff):code<=3?0xffdae8ff:0xff92cfff);backdrop.setEnvironment(data.optDouble("wind_speed_10m",Double.NaN),data.optDouble("cloud_cover",Double.NaN),data.optString("sunrise",""),data.optString("sunset",""));backdrop.setConditions(code,weatherIsDay,Calendar.getInstance().get(Calendar.HOUR_OF_DAY));
+        backdrop.setTimeZone(data.optString("timezone",weatherLocation.timezone()));weatherSymbol.setText(code==0?(weatherIsDay?"☀":"☾"):(code>=71&&code<=77)||code==85||code==86?"❄":code<=3?"☁":code<=67?"☂":"☁");weatherSymbol.setTextColor(code==0?(weatherIsDay?0xffffd18a:0xffd9cbff):code<=3?0xffdae8ff:0xff92cfff);backdrop.setEnvironment(data.optDouble("wind_speed_10m",Double.NaN),data.optDouble("cloud_cover",Double.NaN),data.optString("sunrise",""),data.optString("sunset",""));backdrop.setConditions(code,weatherIsDay,Calendar.getInstance().get(Calendar.HOUR_OF_DAY));readabilityOverlay.setSceneLuminance(backdrop.readabilityLuminance());
     }
     void refreshWeather(){
         if(!weatherLocation.configured()){weather.setText("Set your location");weatherDetail.setText("Settings → Location & scenery");return;}
