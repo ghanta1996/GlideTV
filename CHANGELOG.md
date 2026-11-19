@@ -2,6 +2,11 @@
 
 App releases use semantic versions and an increasing Android version code. Scene packs have their own [changelog](scenes/CHANGELOG.md) and can be published independently.
 
+## 4.6.4
+
+- Verify that Home controls, the dock, and Continue Watching remain on-screen and non-overlapping at 720p, 1080p, and 4K.
+- Record normalized layout geometry alongside real screenshots so scaling regressions fail CI before release.
+
 ## 4.6.3
 
 - Stop forcing a full garbage collection after each Continue Watching render.
