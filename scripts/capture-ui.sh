@@ -249,7 +249,7 @@ capture_resolution() {
   press RIGHT
   press DOWN
   adb shell input keyevent KEYCODE_DPAD_CENTER
-  sleep .5
+  sleep 3
   assert_visible "after-$label-ambient" "Midnight Drive Across the City Lights"
   seed_home false false false true
   capture "after-$label-dense-first"
@@ -338,7 +338,7 @@ assert_focus "nav-music-settings" "Settings"
 press DOWN
 assert_focus "nav-music-card" "Now playing Midnight Drive"
 adb shell input keyevent KEYCODE_DPAD_CENTER
-sleep .5
+sleep 3
 assert_visible "nav-ambient-open" "Midnight Drive Across the City Lights"
 adb shell input keyevent KEYCODE_BACK
 sleep .5
