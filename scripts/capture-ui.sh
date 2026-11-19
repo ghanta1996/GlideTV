@@ -278,7 +278,7 @@ adb shell input keyevent KEYCODE_DPAD_CENTER
 sleep 1
 assert_visible "nav-library-dialog" "App library"
 press DOWN
-assert_focus "nav-library-first-app" "Coral demo"
+assert_focus "nav-library-first-app" "Amber demo"
 adb shell input keyevent --longpress KEYCODE_DPAD_CENTER
 sleep .5
 assert_visible "nav-library-app-options" "Uninstall app"
