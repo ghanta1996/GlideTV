@@ -59,7 +59,8 @@ class VersionPolicy(unittest.TestCase):
     def test_docs_and_generated_catalogue_skip_release(self):
         for path in ['README.md', 'CONTRIBUTING.md', 'assets/live/PROMPTS.md', 'scenes/CHANGELOG.md',
                      'docs/setup.html', 'screenshots/home.png', 'LICENSE', 'NOTICE', 'guide.rst',
-                     'guide.adoc', 'scenes/index.json']:
+                     'guide.adoc', 'scenes/index.json', '.github/ISSUE_TEMPLATE/bug.yml',
+                     '.github/ISSUE_TEMPLATE/feature.yml', '.github/ISSUE_TEMPLATE/config.yml']:
             self.write(path, 'documentation or generated data')
         self.commit()
         self.assertEqual(self.check(), {'release_needed': 'false'})
@@ -76,6 +77,7 @@ class VersionPolicy(unittest.TestCase):
 
     def test_non_documentation_paths_require_bump(self):
         for path in ['build.sh', '.github/workflows/release.yml', 'assets/remote/index.html',
+                     '.github/dependabot.yml',
                      'res/drawable/icon.xml', 'bridge/Helper.java', 'lib/dependency.jar',
                      'scenes/catalog.json', 'assets/live/cloud.png', 'tests/Test.java',
                      'scripts/release.py', 'new-module/unknown.file']:

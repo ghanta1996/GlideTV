@@ -2,6 +2,11 @@
 
 App releases use semantic versions and an increasing Android version code. Scene packs have their own [changelog](scenes/CHANGELOG.md) and can be published independently.
 
+## 4.7.1
+
+- Treat GitHub community issue forms as documentation-only so later template changes do not publish an unchanged APK.
+- Keep workflows and all other non-documentation GitHub configuration behind the normal version and changelog release gate.
+
 ## 4.7.0
 
 - Automatically strengthen the foreground scrim as scenery becomes brighter, preserving text and control readability without adding theme settings.
