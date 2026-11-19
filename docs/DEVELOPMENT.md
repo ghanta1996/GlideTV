@@ -71,6 +71,7 @@ The on-device test needs network access. It uses separate temporary files and pr
 | `bridge/` | Optional ADB helper |
 | `scenes/` | Downloadable scene catalogue and documentation |
 | `tests/`, `scripts/` | Checks, packaging and release tools |
+| [`docs/DNS_BLOCKING_SAFETY.md`](DNS_BLOCKING_SAFETY.md) | Mandatory go/no-go contract for the optional DNS blocker |
 
 ### Architecture boundaries
 
