@@ -28,7 +28,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     private final android.database.ContentObserver watchChanges=new android.database.ContentObserver(handler){public void onChange(boolean self){if(active)loadWatchNext();}};
     private int watchGeneration=0;
     private HorizontalScrollView appStrip, watchStrip;
-    private FrameLayout watchBubble;
+    private FrameLayout watchBubble, dockHost;
     private SpeechBubble watchBalloon;
     private float tailCentre;
     private android.animation.ValueAnimator dockMagnify;
@@ -94,7 +94,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     private android.content.SharedPreferences prefs;
     private static final String STOCK="com.google.android.apps.tv.launcherx";
     private static final int CARD_W=174, CARD_H=102, CARD_GAP=13, TITLE_GAP=7, TITLE_LINE=14,
-            STRIP_PAD=5, BUBBLE_PAD_V=21, BUBBLE_PAD_H=20, PAGE_PAD=40;
+            STRIP_PAD=5, BUBBLE_PAD_V=21, BUBBLE_PAD_H=20;
     /** Strip height follows the card: artwork, the gap, then one line of title. */
     private int stripHeight(){return CARD_H+TITLE_GAP+TITLE_LINE+STRIP_PAD*2;}
     /**
@@ -104,11 +104,6 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     private int bubbleSidePad(){
         float r=(stripHeight()+BUBBLE_PAD_V*2)*.5f, dy=r-BUBBLE_PAD_V-STRIP_PAD;
         return Math.max(BUBBLE_PAD_H,(int)Math.ceil(r-Math.sqrt(Math.max(0,r*r-dy*dy)))+2);
-    }
-    /** How many whole cards fit between the cleared edges; a part card would be cut by the curve. */
-    private int watchFit(){
-        int screen=Math.round(getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density);
-        return Math.max(1,(screen-PAGE_PAD*2-bubbleSidePad()*2+CARD_GAP)/(CARD_W+CARD_GAP));
     }
     private static class App {
         String pkg,label; Intent intent; Drawable icon; int accent;
@@ -188,18 +183,18 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         page.addView(new View(this),new LinearLayout.LayoutParams(1,0,1));
         watchSection=column();watchSection.setClipChildren(false);watchSection.setClipToPadding(false);
         FrameLayout bubble=new FrameLayout(this);watchBubble=bubble;watchBalloon=new SpeechBubble(dp(28));bubble.setBackground(watchBalloon);
-        bubble.setPadding(dp(bubbleSidePad()),dp(BUBBLE_PAD_V),dp(bubbleSidePad()),dp(BUBBLE_PAD_V)+dp(28));bubble.setClipChildren(false);bubble.setClipToPadding(false);
+        bubble.setClipChildren(true);bubble.setClipToPadding(true);
         watchStrip=new HorizontalScrollView(this);watchStrip.setHorizontalScrollBarEnabled(false);watchStrip.setClipChildren(true);watchStrip.setClipToPadding(false);watchStrip.setPadding(0,dp(STRIP_PAD),0,dp(STRIP_PAD));watchStrip.setOverScrollMode(View.OVER_SCROLL_NEVER);watchStrip.setSmoothScrollingEnabled(true);watchRow=row();watchRow.setClipChildren(false);watchRow.setClipToPadding(false);watchStrip.addView(watchRow);
-        bubble.addView(watchStrip,new FrameLayout.LayoutParams(-2,dp(stripHeight())));bubble.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{if(r-l!=or-ol)placeBubble(false);});watchSection.addView(bubble,new LinearLayout.LayoutParams(-2,-2));
+        FrameLayout.LayoutParams stripLp=new FrameLayout.LayoutParams(-1,dp(stripHeight()));stripLp.setMargins(dp(bubbleSidePad()),dp(BUBBLE_PAD_V),dp(bubbleSidePad()),dp(BUBBLE_PAD_V)+dp(28));bubble.addView(watchStrip,stripLp);bubble.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{if(r-l!=or-ol)placeBubble(false);});watchSection.addView(bubble,new LinearLayout.LayoutParams(-1,-2));
         watchSection.setAlpha(0f);watchSection.setVisibility(View.INVISIBLE);page.addView(watchSection,new LinearLayout.LayoutParams(-1,-2));gap(page,14);
-                FrameLayout dockHost=new FrameLayout(this);dockHost.setClipChildren(false);dockHost.setClipToPadding(false);
+        dockHost=new FrameLayout(this);dockHost.setClipChildren(false);dockHost.setClipToPadding(false);dockHost.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->sizeDockViewport());
         appStrip=new HorizontalScrollView(this);appStrip.setHorizontalScrollBarEnabled(false);appStrip.setClipToPadding(false);appStrip.setClipChildren(false);appStrip.setPadding(dp(20),dp(19),dp(20),dp(7));appStrip.setOverScrollMode(View.OVER_SCROLL_NEVER);appStrip.setSmoothScrollingEnabled(true);
         appStrip.setBackground(new DockDrawable(dp(32),false));appStrip.setElevation(dp(5));
         favoriteRow=row();favoriteRow.setGravity(Gravity.BOTTOM);favoriteRow.setClipChildren(false);favoriteRow.setClipToPadding(false);appStrip.addView(favoriteRow);
         dockHost.addView(appStrip,new FrameLayout.LayoutParams(-2,-1,Gravity.CENTER_HORIZONTAL|Gravity.BOTTOM));page.addView(dockHost,new LinearLayout.LayoutParams(-1,dp(125)));
         updateNotice=button("",()->appUpdater.showAvailable());updateNotice.setVisibility(View.GONE);updateNotice.setTextColor(mint);updateNotice.setContentDescription("Glide update available. Select to review and install.");FrameLayout.LayoutParams noticeLp=new FrameLayout.LayoutParams(-2,dp(34),Gravity.BOTTOM|Gravity.END);noticeLp.setMargins(0,0,dp(40),dp(12));root.addView(updateNotice,noticeLp);
         musicCard=row();musicCard.setGravity(Gravity.CENTER_VERTICAL);musicCard.setPadding(dp(10),dp(10),dp(13),dp(10));musicCard.setBackground(new GlassDrawable(dp(20),false));musicCard.setElevation(dp(5));musicCard.setFocusable(false);musicCard.setClickable(false);musicCard.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);musicCard.setVisibility(View.GONE);
-        musicArt=new ImageView(this);musicArt.setScaleType(ImageView.ScaleType.CENTER_CROP);musicArt.setBackground(shape(0x38101d2d,0));musicCard.addView(musicArt,new LinearLayout.LayoutParams(dp(64),dp(64)));LinearLayout musicWords=column();TextView musicLabel=text("NOW PLAYING",10,mint);musicLabel.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));musicWords.addView(musicLabel);gap(musicWords,5);musicTitle=text("",15,ink);musicTitle.setSingleLine(true);musicTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);musicTitle.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));musicWords.addView(musicTitle);gap(musicWords,4);musicSubtitle=text("",11,muted);musicSubtitle.setSingleLine(true);musicSubtitle.setEllipsize(android.text.TextUtils.TruncateAt.END);musicWords.addView(musicSubtitle);LinearLayout.LayoutParams wordsLp=new LinearLayout.LayoutParams(0,-2,1);wordsLp.setMarginStart(dp(12));musicCard.addView(musicWords,wordsLp);FrameLayout.LayoutParams musicLp=new FrameLayout.LayoutParams(dp(310),dp(84),Gravity.END|Gravity.BOTTOM);musicLp.setMargins(0,0,dp(40),dp(145));root.addView(musicCard,musicLp);
+        musicArt=new ImageView(this);musicArt.setScaleType(ImageView.ScaleType.CENTER_CROP);musicArt.setBackground(shape(0x38101d2d,0));musicCard.addView(musicArt,new LinearLayout.LayoutParams(dp(64),dp(64)));LinearLayout musicWords=column();TextView musicLabel=text("NOW PLAYING",10,mint);musicLabel.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));musicWords.addView(musicLabel);gap(musicWords,5);musicTitle=text("",15,ink);musicTitle.setSingleLine(true);musicTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);musicTitle.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));musicWords.addView(musicTitle);gap(musicWords,4);musicSubtitle=text("",11,muted);musicSubtitle.setSingleLine(true);musicSubtitle.setEllipsize(android.text.TextUtils.TruncateAt.END);musicWords.addView(musicSubtitle);LinearLayout.LayoutParams wordsLp=new LinearLayout.LayoutParams(0,-2,1);wordsLp.setMarginStart(dp(12));musicCard.addView(musicWords,wordsLp);FrameLayout.LayoutParams musicLp=new FrameLayout.LayoutParams(dp(310),dp(84),Gravity.END|Gravity.TOP);musicLp.setMargins(0,dp(76),dp(40),0);root.addView(musicCard,musicLp);
         library=column();
     }
     void showLibrary(){
@@ -244,7 +239,18 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         favoriteRow.removeAllViews();firstApp=null;
         dockCentre=-1;for(String p:favorites){App a=app(p);if(a==null)continue;View item=tile(a,true);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(112),dp(99));favoriteRow.addView(item,lp);if(firstApp==null)firstApp=item;}
         if(firstApp==null){selectedPkg=null;favoriteRow.addView(button("Choose favorites",()->showLibrary()));}
+        sizeDockViewport();
         View target=focus==null?null:favoriteRow.findViewWithTag(focus);if(target!=null)target.requestFocus();else if(firstApp!=null){firstApp.requestFocus();selectApp(appsForFirstFavorite());}
+    }
+    void sizeDockViewport(){
+        if(dockHost==null||appStrip==null||favoriteRow==null)return;
+        dockHost.post(()->{
+            int hostWidth=dockHost.getWidth(),contentWidth=favoriteRow.getMeasuredWidth()+appStrip.getPaddingLeft()+appStrip.getPaddingRight();
+            if(hostWidth<=0||contentWidth<=0)return;
+            android.widget.FrameLayout.LayoutParams layout=(android.widget.FrameLayout.LayoutParams)appStrip.getLayoutParams();
+            int width=Math.min(hostWidth,contentWidth);if(layout.width==width)return;
+            layout.width=width;appStrip.setLayoutParams(layout);
+        });
     }
     App appsForFirstFavorite(){for(String p:favorites){App a=app(p);if(a!=null)return a;}return null;}
     /** Dock magnification: the focused icon grows and its neighbours step aside so nothing overlaps. */
@@ -447,7 +453,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     void renderSelectedWatch(){
         App selected=app(selectedPkg);if(selected==null)return;String key=watchKey(selectedPkg);if(key.equals(renderedWatchKey))return;renderedWatchKey=key;
         ArrayList<WatchItem> visible=new ArrayList<>();for(WatchItem w:watchItems)if(selectedPkg.equals(w.pkg))visible.add(w);
-        int generation=++artworkGeneration,limit=Math.min(Math.min(12,visible.size()),watchFit());
+        int generation=++artworkGeneration,limit=visible.size();
         watchRow.removeAllViews();watchStrip.scrollTo(0,0);watchRow.setAlpha(1);
         if(visible.isEmpty()){for(WatchHolder unused:watchPool){unused.item=null;unused.image.setTag("");unused.image.setImageDrawable(null);}watchHasItems=false;bubbleOut();return;}
         watchHasItems=true;
@@ -490,8 +496,9 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     void loadWatchNext(){
         if(watchRow==null)return;
         if(visualWatchFixtureEnabled()){
-            watchGeneration++;WatchItem item=new WatchItem();item.title="Focus regression";item.pkg="space.glidetv.preview.coral";item.intent="intent:#Intent;action=android.intent.action.VIEW;package=space.glidetv.preview.coral;end";item.position=120000;item.duration=180000;item.time=1731974400000L;item.type=1;
-            watchItems.clear();watchItems.add(item);renderSelectedWatch();return;
+            watchGeneration++;watchItems.clear();
+            for(int n=0;n<8;n++){WatchItem item=new WatchItem();item.title=n==0?"Focus regression":"Watch fixture "+(n+1);item.pkg="space.glidetv.preview.coral";item.intent="intent:#Intent;action=android.intent.action.VIEW;package=space.glidetv.preview.coral;end";item.position=120000+n*5000;item.duration=180000;item.time=1731974400000L-n;item.type=1;watchItems.add(item);}
+            renderSelectedWatch();return;
         }
         if(checkSelfPermission("android.permission.READ_TV_LISTINGS")!=PackageManager.PERMISSION_GRANTED){watchEmpty("Connect your watch history","Show Continue Watching from supported apps",true);return;}
         final int generation=++watchGeneration;

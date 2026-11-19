@@ -31,7 +31,11 @@ trap reset_display EXIT
 python3 - <<'PY'
 from pathlib import Path
 items=[('coral','Coral demo','#EF4056',True),('ocean','Ocean demo','#00A8E1',True),
-       ('mint','Mint demo','#1ED760',False),('mono','Mono demo','#FFFFFF',False)]
+       ('mint','Mint demo','#1ED760',False),('mono','Mono demo','#FFFFFF',False),
+       ('amber','Amber demo','#FFB020',False),('violet','Violet demo','#8B5CF6',False),
+       ('cyan','Cyan demo','#22D3EE',False),('rose','Rose demo','#FB7185',False),
+       ('gold','Gold demo','#FACC15',False),('lime','Lime demo','#84CC16',False),
+       ('navy','Navy demo','#3B82F6',False),('pearl','Pearl demo','#E2E8F0',False)]
 for name,label,color,banner in items:
     root=Path('build/visual-fixtures')/name
     (root/'res/drawable').mkdir(parents=True,exist_ok=True)
@@ -51,7 +55,7 @@ for name,label,color,banner in items:
 <activity android:name="android.app.Activity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LEANBACK_LAUNCHER"/></intent-filter></activity>
 </application></manifest>''')
 PY
-for name in coral ocean mint mono; do
+for name in coral ocean mint mono amber violet cyan rose gold lime navy pearl; do
   fixture="build/visual-fixtures/$name"
   "$BT/aapt2" compile --dir "$fixture/res" -o "$fixture/resources.zip"
   "$BT/aapt2" link -o "$fixture/base.apk" --manifest "$fixture/AndroidManifest.xml" -I "$JAR" "$fixture/resources.zip"
@@ -71,12 +75,17 @@ seed_home() {
   local visual_watch_fixture="${1:-false}"
   local visual_night_fixture="${2:-false}"
   local visual_music_fixture="${3:-false}"
+  local dense_favorites="${4:-false}"
+  local favorites='space.glidetv.preview.coral,space.glidetv.preview.ocean,space.glidetv.preview.mint,space.glidetv.preview.mono'
+  if [[ "$dense_favorites" == true ]]; then
+    favorites+=',space.glidetv.preview.amber,space.glidetv.preview.violet,space.glidetv.preview.cyan,space.glidetv.preview.rose,space.glidetv.preview.gold,space.glidetv.preview.lime,space.glidetv.preview.navy,space.glidetv.preview.pearl'
+  fi
   adb shell am force-stop "$app_id"
   adb shell run-as "$app_id" mkdir -p shared_prefs
-  cat > build/visual-fixtures/home.xml <<'XML'
+  cat > build/visual-fixtures/home.xml <<XML
 <?xml version='1.0' encoding='utf-8' standalone='yes' ?>
 <map>
-  <string name="favorites">space.glidetv.preview.coral,space.glidetv.preview.ocean,space.glidetv.preview.mint,space.glidetv.preview.mono</string>
+  <string name="favorites">$favorites</string>
   <boolean name="location_prompted" value="true" />
   <boolean name="connection_permissions_prompted" value="true" />
 </map>
@@ -206,6 +215,8 @@ capture_resolution() {
   seed_home true false true
   capture "after-$label-coral"
   capture_watch_focus "after-$label-watch"
+  for _ in 1 2 3 4 5 6 7; do press RIGHT; done
+  assert_focus "after-$label-watch-last" "Resume Watch fixture 8"
   press DOWN
   for name in ocean mint mono; do
     adb shell input keyevent KEYCODE_DPAD_RIGHT
@@ -219,6 +230,10 @@ capture_resolution() {
     seed_home true false true
     capture_performance "after-$label"
   fi
+  seed_home false false false true
+  capture "after-$label-dense-first"
+  for _ in 1 2 3 4 5 6 7 8 9 10 11; do press RIGHT; done
+  assert_focus "after-$label-dense-last" "Pearl demo"
   adb uninstall "$app_id"
 }
 
@@ -355,6 +370,8 @@ for resolution in resolutions:
     def overlaps(first,second):
         return first[0]<second[2] and first[2]>second[0] and first[1]<second[3] and first[3]>second[1]
     assert not overlaps(music_bounds,watch_bounds), (music_bounds,watch_bounds)
+    watch_cards=[bounds(node) for node in layout_nodes if node.get('content-desc','').startswith('Resume ')]
+    assert all(not overlaps(music_bounds,item) for item in watch_cards), (music_bounds,watch_cards)
     assert all(not overlaps(music_bounds,item) for item in favorite_bounds), (music_bounds,favorite_bounds)
     key_bounds=[bounds(remote),bounds(library),bounds(settings),watch_bounds,music_bounds,favorite_bounds[0]]
     geometry=[coordinate/(width if index%2==0 else height) for item in key_bounds for index,coordinate in enumerate(item)]
@@ -371,6 +388,17 @@ for resolution in resolutions:
         screenshot=root/(capture_name+'.png')
         assert screenshot.stat().st_size>10000, capture_name
         assert png_size(screenshot) == expected_size, (capture_name, png_size(screenshot), expected_size)
+    for suffix,description in [('watch-last','Resume Watch fixture 8'),('dense-last','Pearl demo')]:
+        capture_name=f'after-{resolution}-{suffix}'
+        tree=ET.parse(root/(capture_name+'.xml'))
+        focused=[node for node in tree.iter('node') if node.get('focused')=='true']
+        match=next((node for node in focused if description in node.get('content-desc','')),None)
+        assert match is not None, (capture_name,[node.attrib for node in focused])
+        left,top,right,bottom=bounds(match)
+        assert 0<=left<right<=width and 0<=top<bottom<=height, (capture_name,match.attrib)
+        screenshot=root/(capture_name+'.png')
+        assert screenshot.stat().st_size>10000, capture_name
+        assert png_size(screenshot) == expected_size, (capture_name,png_size(screenshot),expected_size)
 (root/'layout-geometry.md').write_text(
     '# Home layout geometry\n\n'
     'Actual Android TV UI bounds. CI also verifies every interactive control stays on-screen, the top controls and dock tiles do not overlap, Continue Watching stays between the top bar and dock, and normalized key bounds remain within 0.4% across resolutions.\n\n'

@@ -2,6 +2,12 @@
 
 App releases use semantic versions and an increasing Android version code. Scene packs have their own [changelog](scenes/CHANGELOG.md) and can be published independently.
 
+## 4.8.1
+
+- Keep the favorites dock aligned when its contents exceed the screen, with smooth horizontal focus scrolling instead of an oversized clipped surface.
+- Show every Continue Watching title for the selected app in a horizontally scrollable glass row instead of limiting the row to the first four visible cards.
+- Regression-test dense favorites and navigation beyond the first Continue Watching viewport on Android TV.
+
 ## 4.8.0
 
 - Optionally show the active media title, artist, album and bounded album artwork on Home without adding playback controls.
