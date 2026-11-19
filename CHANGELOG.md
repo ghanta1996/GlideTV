@@ -2,6 +2,12 @@
 
 App releases use semantic versions and an increasing Android version code. Scene packs have their own [changelog](scenes/CHANGELOG.md) and can be published independently.
 
+## 4.7.0
+
+- Automatically strengthen the foreground scrim as scenery becomes brighter, preserving text and control readability without adding theme settings.
+- Smoothly adapt the treatment across daylight, night, and changing weather while keeping scenery motion visible.
+- Regression-test the luminance model and capture real light, dark, and moving Android TV scenery in CI.
+
 ## 4.6.5
 
 - Refine existing glass surfaces with clearer translucency, layered highlights, and restrained depth shadows.

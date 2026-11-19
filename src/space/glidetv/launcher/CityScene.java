@@ -13,6 +13,7 @@ final class CityScene extends View {
   skyTop=mix(0xff080e27,0xff64b2e9,daylight);skyBottom=mix(0xff24334d,0xffd5ebf5,daylight);skyBottom=mix(skyBottom,0xffebb17c,golden*.6f);if(code>=45){skyTop=mix(skyTop,0xff536a7a,.7f);skyBottom=mix(skyBottom,0xffa7b4bb,.65f);}else if(code==3){skyTop=mix(skyTop,0xff839eaf,.6f);skyBottom=mix(skyBottom,0xffc5d1d6,.5f);}
   skyPaint.setShader(new LinearGradient(0,0,0,Math.max(1,getHeight()),skyTop,skyBottom,Shader.TileMode.CLAMP));float overcast=code==3?.5f:(code>=45?.58f:Math.max(0,(cloudCover-55f)/100f*.28f));if(code>=51)overcast=Math.max(overcast,.38f);int gray=(int)(255-70*overcast);cityLight=overcast>0?new LightingColorFilter(Color.rgb(gray,gray,gray),Color.rgb(0,0,0)):null;invalidate();
  }
+ public float readabilityLuminance(){return Readability.sceneLuminance(skyTop,skyBottom);}
  public boolean isDaytime(){float time=clockHour();return hasSolarTimes?time>=sunriseHour&&time<sunsetHour:weatherDay;}
  private float parseHour(String value,float fallback){try{String clock=value.substring(11,16);return Integer.parseInt(clock.substring(0,2))+Integer.parseInt(clock.substring(3,5))/60f;}catch(Exception e){return fallback;}}
  public void setEnvironment(double wind,double cover,String sunrise,String sunset){hasSolarTimes=sunrise.length()>=16&&sunset.length()>=16;if(!Double.isNaN(wind))windFactor=Math.max(.35f,Math.min(2,(float)wind/15));cloudCover=Double.isNaN(cover)?0:(float)cover;sunriseHour=parseHour(sunrise,sunriseHour);sunsetHour=parseHour(sunset,sunsetHour);}

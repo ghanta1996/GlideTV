@@ -77,6 +77,7 @@ public final class Atmosphere extends FrameLayout implements SurfaceHolder.Callb
  public void setTimeZone(String id){weatherZone=java.util.TimeZone.getTimeZone(id);if(fallback!=null)fallback.setTimeZone(id);}
  public void reloadScene(){if(disposed)return;if(fallback!=null){fallback.dispose();removeView(fallback);fallback=null;}showFallback();}
  public boolean isDaytime(){if(fallback!=null)return fallback.isDaytime();if(savedSunrise.length()<16||savedSunset.length()<16)return weatherDay;Calendar now=Calendar.getInstance(weatherZone);float hour=now.get(Calendar.HOUR_OF_DAY)+now.get(Calendar.MINUTE)/60f;return hour>=sunriseHour&&hour<sunsetHour;}
+ public float readabilityLuminance(){return fallback!=null?fallback.readabilityLuminance():Readability.videoLuminance(isDaytime(),code);}
  public void setEnvironment(double wind,double cover,String sunrise,String sunset){
   savedWind=wind;savedCover=cover;savedSunrise=sunrise;savedSunset=sunset;sunriseHour=parseHour(sunrise,sunriseHour);sunsetHour=parseHour(sunset,sunsetHour);
   if(fallback!=null)fallback.setEnvironment(wind,cover,sunrise,sunset);
