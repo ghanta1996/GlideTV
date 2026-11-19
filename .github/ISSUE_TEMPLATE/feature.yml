@@ -1,0 +1,43 @@
+name: Feature request
+description: Propose a focused user-visible improvement
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: Describe the user need before prescribing an implementation.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or user need
+      description: Who is affected, and what is difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: benefit
+    attributes:
+      label: Expected benefit
+      description: Explain how the proposed change improves the TV experience.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Proposed behavior
+      description: Keep the proposal focused and note any backward-compatibility concerns.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List concise, observable conditions that would make the request complete.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include workarounds or smaller changes that might solve the same need.

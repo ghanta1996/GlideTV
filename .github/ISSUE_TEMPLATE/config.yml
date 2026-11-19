@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Installation and default Home help
+    url: https://github.com/ghanta1996/GlideTV/blob/main/docs/INSTALLATION.md
+    about: Check setup, sideloading, and default-launcher instructions before reporting a bug.
+  - name: Phone remote help
+    url: https://github.com/ghanta1996/GlideTV/blob/main/docs/REMOTE.md
+    about: Review pairing, network, file transfer, and remote-control guidance.
