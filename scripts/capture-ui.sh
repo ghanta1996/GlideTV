@@ -70,6 +70,7 @@ adb shell wm dismiss-keyguard
 seed_home() {
   local visual_watch_fixture="${1:-false}"
   local visual_night_fixture="${2:-false}"
+  local visual_music_fixture="${3:-false}"
   adb shell am force-stop "$app_id"
   adb shell run-as "$app_id" mkdir -p shared_prefs
   cat > build/visual-fixtures/home.xml <<'XML'
@@ -82,7 +83,7 @@ seed_home() {
 XML
   adb shell -T "run-as $app_id sh -c 'cat > shared_prefs/home.xml'" < build/visual-fixtures/home.xml
   adb shell pm grant "$app_id" android.permission.READ_TV_LISTINGS || true
-  adb shell am start -W --ez visual_watch_fixture "$visual_watch_fixture" --ez visual_night_fixture "$visual_night_fixture" -n "$app_id/.HomeActivity"
+  adb shell am start -W --ez visual_watch_fixture "$visual_watch_fixture" --ez visual_night_fixture "$visual_night_fixture" --ez visual_music_fixture "$visual_music_fixture" -n "$app_id/.HomeActivity"
   sleep 4
 }
 
@@ -202,7 +203,7 @@ capture_resolution() {
     adb uninstall "$app_id"
   fi
   adb install -r "${VISUAL_HEAD_APK:-build/GlideTV.apk}"
-  seed_home true
+  seed_home true false true
   capture "after-$label-coral"
   capture_watch_focus "after-$label-watch"
   press DOWN
@@ -212,10 +213,10 @@ capture_resolution() {
     capture "after-$label-$name"
   done
   if [[ "$resolution" == 1920x1080 ]]; then
-    seed_home true true
+    seed_home true true true
     capture "after-$label-night"
     capture_watch_focus "after-$label-night-watch"
-    seed_home true
+    seed_home true false true
     capture_performance "after-$label"
   fi
   adb uninstall "$app_id"
@@ -340,6 +341,7 @@ for resolution in resolutions:
     library=find_node(layout_nodes,text='App library')
     settings=find_node(layout_nodes,text='Settings')
     watch=find_node(layout_nodes,description='Resume Focus regression')
+    music=find_node(layout_nodes,description='Now playing Midnight Drive by Glide Sessions')
     favorites=[node for node in layout_nodes if ', favorite. Hold OK to move.' in node.get('content-desc','')]
     assert len(favorites)==4, [node.attrib for node in favorites]
     top_controls=[bounds(node) for node in (remote,library,settings)]
@@ -347,15 +349,20 @@ for resolution in resolutions:
     favorite_bounds=[bounds(node) for node in favorites]
     assert all(favorite_bounds[index][2]<=favorite_bounds[index+1][0] for index in range(len(favorite_bounds)-1)), favorite_bounds
     watch_bounds=bounds(watch)
+    music_bounds=bounds(music)
     assert max(item[3] for item in top_controls)<watch_bounds[1], (top_controls,watch_bounds)
     assert watch_bounds[3]<min(item[1] for item in favorite_bounds), (watch_bounds,favorite_bounds)
-    key_bounds=[bounds(remote),bounds(library),bounds(settings),watch_bounds,favorite_bounds[0]]
+    def overlaps(first,second):
+        return first[0]<second[2] and first[2]>second[0] and first[1]<second[3] and first[3]>second[1]
+    assert not overlaps(music_bounds,watch_bounds), (music_bounds,watch_bounds)
+    assert all(not overlaps(music_bounds,item) for item in favorite_bounds), (music_bounds,favorite_bounds)
+    key_bounds=[bounds(remote),bounds(library),bounds(settings),watch_bounds,music_bounds,favorite_bounds[0]]
     geometry=[coordinate/(width if index%2==0 else height) for item in key_bounds for index,coordinate in enumerate(item)]
     if reference_geometry is None:
         reference_geometry=geometry
     else:
         assert max(abs(current-reference) for current,reference in zip(geometry,reference_geometry))<.004, (resolution,geometry,reference_geometry)
-    layout_rows.append((resolution,bounds(remote),bounds(library),bounds(settings),watch_bounds,favorite_bounds[0]))
+    layout_rows.append((resolution,bounds(remote),bounds(library),bounds(settings),watch_bounds,music_bounds,favorite_bounds[0]))
     for name,label in [('coral','Coral demo'),('ocean','Ocean demo'),('mint','Mint demo'),('mono','Mono demo')]:
         capture_name=f'after-{resolution}-{name}'
         tree=ET.parse(root/(capture_name+'.xml'))
@@ -367,9 +374,9 @@ for resolution in resolutions:
 (root/'layout-geometry.md').write_text(
     '# Home layout geometry\n\n'
     'Actual Android TV UI bounds. CI also verifies every interactive control stays on-screen, the top controls and dock tiles do not overlap, Continue Watching stays between the top bar and dock, and normalized key bounds remain within 0.4% across resolutions.\n\n'
-    '| Resolution | Remote | App library | Settings | Continue Watching | Focused favorite |\n'
-    '| --- | --- | --- | --- | --- | --- |\n'+
-    ''.join(f'| {resolution.replace("-","×")} | `{remote}` | `{library}` | `{settings}` | `{watch}` | `{favorite}` |\n' for resolution,remote,library,settings,watch,favorite in layout_rows)
+    '| Resolution | Remote | App library | Settings | Continue Watching | Music info | Focused favorite |\n'
+    '| --- | --- | --- | --- | --- | --- | --- |\n'+
+    ''.join(f'| {resolution.replace("-","×")} | `{remote}` | `{library}` | `{settings}` | `{watch}` | `{music}` | `{favorite}` |\n' for resolution,remote,library,settings,watch,music,favorite in layout_rows)
 )
 print('Runtime screenshots and D-pad focus states verified at 720p, 1080p, and 4K')
 PY
@@ -406,4 +413,4 @@ after=metrics('after-1920-1080')
 )
 PY
 git rev-parse HEAD > "$output/tested-commit.txt"
-printf '%s\n' 'Android TV API 36 emulator. Captured UI sizes: 1280x720 at 213 dpi, 1920x1080 at 320 dpi, and 3840x2160 at 640 dpi, preserving a comparable TV layout scale. Coral/Ocean/Mint/Mono are synthetic demo apps, not third-party services. Scenery is the native fallback; location is unset. Screenshots and recording are actual app captures.' > "$output/README.txt"
+printf '%s\n' 'Android TV API 36 emulator. Captured UI sizes: 1280x720 at 213 dpi, 1920x1080 at 320 dpi, and 3840x2160 at 640 dpi, preserving a comparable TV layout scale. Coral/Ocean/Mint/Mono and Midnight Drive are synthetic debug-only fixtures, not third-party services or personal media. Scenery is the native fallback; location is unset. Screenshots and recording are actual app captures.' > "$output/README.txt"

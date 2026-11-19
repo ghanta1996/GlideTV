@@ -19,6 +19,7 @@ Set `TV_SERIAL` to the TV's serial from `adb devices`.
 | Location | Automatic local weather and scenery. Manual city search is also available. |
 | TV listings / Watch Next | Continue Watching from apps that share it |
 | Bluetooth | Bluetooth connection status |
+| Notification access | Optional active media title, artist, album and artwork. Glide reads this only while Home is visible, keeps no listening history and provides no playback controls. Availability depends on the app and TV firmware. |
 
 ## Install with Downloader
 

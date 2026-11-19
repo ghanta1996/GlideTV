@@ -22,6 +22,10 @@ Requires **Android TV / Google TV 8.0+**. Default-Home support depends on your T
 
 [Phone remote guide](docs/REMOTE.md) · [Installation and updates](docs/INSTALLATION.md)
 
+## Music playback info
+
+Glide can optionally show the active media title, artist, album and artwork on Home. Enable it from **Settings → Music playback info**. Android notification access is required to discover media sessions; Glide does not add playback controls, retain listening history or upload this metadata. Support depends on the media app and TV firmware.
+
 ## Contribute
 
 [Contribution guide](CONTRIBUTING.md) · [Developer guide](docs/DEVELOPMENT.md) · [Scene packs](scenes/README.md)
