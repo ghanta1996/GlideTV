@@ -88,6 +88,7 @@ seed_home() {
   <string name="favorites">$favorites</string>
   <boolean name="location_prompted" value="true" />
   <boolean name="connection_permissions_prompted" value="true" />
+  <boolean name="permission_setup_prompted" value="true" />
 </map>
 XML
   adb shell -T "run-as $app_id sh -c 'cat > shared_prefs/home.xml'" < build/visual-fixtures/home.xml
@@ -122,6 +123,17 @@ import sys, xml.etree.ElementTree as ET
 tree=ET.parse(sys.argv[1])
 expected=sys.argv[2]
 assert any(expected in (node.get('text','')+' '+node.get('content-desc','')) for node in tree.iter('node')), expected
+PY
+}
+
+assert_not_visible() {
+  local capture_name="$1" unexpected="$2"
+  capture "$capture_name"
+  python3 - "$output/$capture_name.xml" "$unexpected" <<'PY'
+import sys, xml.etree.ElementTree as ET
+tree=ET.parse(sys.argv[1])
+unexpected=sys.argv[2]
+assert not any(unexpected in (node.get('text','')+' '+node.get('content-desc','')) for node in tree.iter('node')), unexpected
 PY
 }
 
@@ -230,6 +242,15 @@ capture_resolution() {
     seed_home true false true
     capture_performance "after-$label"
   fi
+  seed_home true false true
+  press UP
+  press UP
+  press RIGHT
+  press RIGHT
+  press DOWN
+  adb shell input keyevent KEYCODE_DPAD_CENTER
+  sleep .5
+  assert_visible "after-$label-ambient" "Midnight Drive Across the City Lights"
   seed_home false false false true
   capture "after-$label-dense-first"
   for _ in 1 2 3 4 5 6 7 8 9 10 11; do press RIGHT; done
@@ -256,8 +277,20 @@ assert_focus "nav-top-library" "App library"
 adb shell input keyevent KEYCODE_DPAD_CENTER
 sleep 1
 assert_visible "nav-library-dialog" "App library"
+press DOWN
+assert_focus "nav-library-first-app" "Coral demo"
+adb shell input keyevent --longpress KEYCODE_DPAD_CENTER
+sleep .5
+assert_visible "nav-library-app-options" "Uninstall app"
 adb shell input keyevent KEYCODE_BACK
 sleep .5
+adb uninstall space.glidetv.preview.coral
+sleep 2
+assert_not_visible "nav-library-after-uninstall" "Coral demo"
+adb shell input keyevent KEYCODE_BACK
+sleep .5
+adb install -r build/visual-fixtures/coral/demo.apk
+seed_home
 press DOWN
 assert_focus "nav-return-to-dock" "Coral demo"
 adb shell input keyevent KEYCODE_MENU
@@ -293,6 +326,22 @@ press UP
 assert_focus "nav-watch-card-return" "Resume Focus regression"
 press UP
 assert_focus "nav-watch-up-to-top" "Glide Remote"
+
+seed_home true false true
+press UP
+assert_focus "nav-music-watch" "Resume Focus regression"
+press UP
+assert_focus "nav-music-top" "Glide Remote"
+press RIGHT
+press RIGHT
+assert_focus "nav-music-settings" "Settings"
+press DOWN
+assert_focus "nav-music-card" "Now playing Midnight Drive"
+adb shell input keyevent KEYCODE_DPAD_CENTER
+sleep .5
+assert_visible "nav-ambient-open" "Midnight Drive Across the City Lights"
+adb shell input keyevent KEYCODE_BACK
+sleep .5
 
 # A short unedited recording demonstrates the vertical top-bar/dock path and a saved reorder.
 seed_home
@@ -399,6 +448,15 @@ for resolution in resolutions:
         screenshot=root/(capture_name+'.png')
         assert screenshot.stat().st_size>10000, capture_name
         assert png_size(screenshot) == expected_size, (capture_name,png_size(screenshot),expected_size)
+    ambient_name=f'after-{resolution}-ambient'
+    ambient_tree=ET.parse(root/(ambient_name+'.xml'))
+    ambient_nodes=list(ambient_tree.iter('node'))
+    ambient_title=find_node(ambient_nodes,text='Midnight Drive Across the City Lights')
+    ambient_bounds=bounds(ambient_title)
+    assert 0<=ambient_bounds[0]<ambient_bounds[2]<=width and 0<=ambient_bounds[1]<ambient_bounds[3]<=height, ambient_title.attrib
+    ambient_screenshot=root/(ambient_name+'.png')
+    assert ambient_screenshot.stat().st_size>10000, ambient_name
+    assert png_size(ambient_screenshot)==expected_size, (ambient_name,png_size(ambient_screenshot),expected_size)
 (root/'layout-geometry.md').write_text(
     '# Home layout geometry\n\n'
     'Actual Android TV UI bounds. CI also verifies every interactive control stays on-screen, the top controls and dock tiles do not overlap, Continue Watching stays between the top bar and dock, and normalized key bounds remain within 0.4% across resolutions.\n\n'

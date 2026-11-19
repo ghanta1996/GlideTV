@@ -40,10 +40,11 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     private TextView updateNotice;
     private LinearLayout musicCard;
     private ImageView musicArt;
-    private TextView musicTitle,musicSubtitle;
+    private TextView musicStatus,musicTitle,musicSubtitle;
+    private PlayingIndicator musicIndicator;
     private MusicSessions musicSessions;
     private MusicSessions.Track currentMusic;
-    private WeatherLocation weatherLocation;private ScenePacks scenePacks;private boolean locationPromptScheduled;
+    private WeatherLocation weatherLocation;private ScenePacks scenePacks;private boolean locationPromptScheduled,permissionPromptScheduled,permissionSetupActive,showAccessAfterPermissionResult;
     private View remoteHit, libraryButton, settingsButton;
     private RemoteGlyph remoteGlyph;
     private TextView remoteLabel;
@@ -86,7 +87,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     void hideWatch(){if(watchSection==null)return;watchRevealed=false;watchSection.animate().cancel();watchSection.setAlpha(0f);watchSection.setScaleX(1f);watchSection.setScaleY(1f);watchSection.setTranslationY(0);watchSection.setVisibility(View.INVISIBLE);}
     private TextView clock, date;
     private View firstApp;
-    private boolean loaded=false, active=false, loading=false, watchRevealed=false, watchHasItems=false;
+    private boolean loaded=false, active=false, loading=false, reloadAppsRequested=false, watchRevealed=false, watchHasItems=false;
     private String restoreFocus, movingPkg;
     private ArrayList<String> moveBackup;
     private Runnable pendingSwap;
@@ -113,7 +114,12 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         if(clock!=null){Date now=new Date();clock.setText(localTime("h:mm",now));date.setText(localTime("EEEE, d MMMM",now));}
         if(active){if(appUpdater!=null)appUpdater.checkIfDue();if(backdrop!=null){backdrop.setConditions(weatherCode,visualNightFixture?false:weatherIsDay,visualNightFixture?23:Calendar.getInstance().get(Calendar.HOUR_OF_DAY));readabilityOverlay.setSceneLuminance(backdrop.readabilityLuminance());if(weatherCode==0&&weatherSymbol!=null){boolean day=backdrop.isDaytime();weatherSymbol.setText(day?"☀":"☾");weatherSymbol.setTextColor(day?0xffffd18a:0xffd9cbff);}}refreshWeather();handler.postDelayed(this,60000-System.currentTimeMillis()%60000);}
     }};
-    private final BroadcastReceiver changes=new BroadcastReceiver(){public void onReceive(Context c,Intent i){if(active)loadApps();else loaded=false;}};
+    private final BroadcastReceiver changes=new BroadcastReceiver(){public void onReceive(Context c,Intent i){
+        if(Intent.ACTION_PACKAGE_REMOVED.equals(i.getAction())&&!i.getBooleanExtra(Intent.EXTRA_REPLACING,false)&&i.getData()!=null){
+            String pkg=i.getData().getSchemeSpecificPart();if(pkg!=null){favorites.remove(pkg);icons.remove(pkg);prefs.edit().putString("favorites",android.text.TextUtils.join(",",favorites)).remove("app-label:"+pkg).remove("app-revision:"+pkg).apply();}
+        }
+        loaded=false;if(active){if(loading)reloadAppsRequested=true;else loadApps();}
+    }};
     @Override public void onCreate(Bundle b){
         super.onCreate(b);prefs=getSharedPreferences("home",MODE_PRIVATE);weatherLocation=new WeatherLocation(this,this::locationChanged);scenePacks=new ScenePacks(this);visualNightFixture=(getApplicationInfo().flags&ApplicationInfo.FLAG_DEBUGGABLE)!=0&&getIntent().getBooleanExtra("visual_night_fixture",false);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -128,7 +134,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((lost,gained)->{if(!isInside(gained,favoriteRow)&&!isInside(gained,watchRow))bubbleOut();});
         loadApps();
     }
-    @Override public void onResume(){super.onResume();active=true;if(appUpdater!=null)appUpdater.onResume();weatherLocation.onResume();handler.removeCallbacks(ticker);ticker.run();meters.start();connectivity.start();if(weatherLocation.configured()&&!prefs.getBoolean("connection_permissions_prompted",false)){prefs.edit().putBoolean("connection_permissions_prompted",true).apply();connectivity.requestInitialStatusPermissions(43);}backdrop.setRunning(true);if(!loaded)loadApps();hideWatch();handler.removeCallbacks(revealWatch);handler.postDelayed(revealWatch,WATCH_DWELL);loadWatchNext();refreshWeather();maybeSetupLocation();if(visualMusicFixtureEnabled())showMusic(musicFixture());else musicSessions.start();}
+    @Override public void onResume(){super.onResume();active=true;if(appUpdater!=null)appUpdater.onResume();weatherLocation.onResume();handler.removeCallbacks(ticker);ticker.run();meters.start();connectivity.start();backdrop.setRunning(true);if(!loaded)loadApps();hideWatch();handler.removeCallbacks(revealWatch);handler.postDelayed(revealWatch,WATCH_DWELL);loadWatchNext();refreshWeather();if(!maybeSetupPermissions()&&!permissionSetupActive)maybeSetupLocation();if(visualMusicFixtureEnabled())showMusic(musicFixture());else musicSessions.start();}
     @Override public void onPause(){super.onPause();active=false;handler.removeCallbacks(revealWatch);hideWatch();if(dockMagnify!=null)dockMagnify.end();handler.removeCallbacks(ticker);meters.stop();connectivity.stop();backdrop.setRunning(false);musicSessions.stop();showMusic(null);}
     @Override public void onDestroy(){super.onDestroy();artworkGeneration++;if(appUpdater!=null)appUpdater.close();musicSessions.close();weatherLocation.close();scenePacks.close();handler.removeCallbacksAndMessages(null);unregisterReceiver(changes);backdrop.dispose();getContentResolver().unregisterContentObserver(watchChanges);if(mobileControl!=null)mobileControl.stop();worker.shutdownNow();artwork.shutdownNow();artCache.evictAll();icons.clear();}
     @Override public void onBackPressed(){if(movingPkg!=null){finishMove(false);return;}if(firstApp!=null)firstApp.requestFocus();}
@@ -138,6 +144,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     LinearLayout column(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);return l;}
     LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.HORIZONTAL);l.setGravity(Gravity.CENTER_VERTICAL);return l;}
     TextView text(String s,int size,int color){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);t.setFontFeatureSettings("kern");t.setIncludeFontPadding(false);return t;}
+    void marquee(TextView view){view.setSingleLine(true);view.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);view.setMarqueeRepeatLimit(-1);view.setSelected(true);}
     GradientDrawable shape(int color,int stroke){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(13));if(stroke!=0)d.setStroke(dp(2),stroke);return d;}
     void gap(LinearLayout p,int h){p.addView(new View(this),new LinearLayout.LayoutParams(1,dp(h)));}
     void styleFocus(View v,int normal, int focused){
@@ -193,8 +200,8 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         favoriteRow=row();favoriteRow.setGravity(Gravity.BOTTOM);favoriteRow.setClipChildren(false);favoriteRow.setClipToPadding(false);appStrip.addView(favoriteRow);
         dockHost.addView(appStrip,new FrameLayout.LayoutParams(-2,-1,Gravity.CENTER_HORIZONTAL|Gravity.BOTTOM));page.addView(dockHost,new LinearLayout.LayoutParams(-1,dp(125)));
         updateNotice=button("",()->appUpdater.showAvailable());updateNotice.setVisibility(View.GONE);updateNotice.setTextColor(mint);updateNotice.setContentDescription("Glide update available. Select to review and install.");FrameLayout.LayoutParams noticeLp=new FrameLayout.LayoutParams(-2,dp(34),Gravity.BOTTOM|Gravity.END);noticeLp.setMargins(0,0,dp(40),dp(12));root.addView(updateNotice,noticeLp);
-        musicCard=row();musicCard.setGravity(Gravity.CENTER_VERTICAL);musicCard.setPadding(dp(10),dp(10),dp(13),dp(10));musicCard.setBackground(new GlassDrawable(dp(20),false));musicCard.setElevation(dp(5));musicCard.setFocusable(false);musicCard.setClickable(false);musicCard.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);musicCard.setVisibility(View.GONE);
-        musicArt=new ImageView(this);musicArt.setScaleType(ImageView.ScaleType.CENTER_CROP);musicArt.setBackground(shape(0x38101d2d,0));musicCard.addView(musicArt,new LinearLayout.LayoutParams(dp(64),dp(64)));LinearLayout musicWords=column();TextView musicLabel=text("NOW PLAYING",10,mint);musicLabel.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));musicWords.addView(musicLabel);gap(musicWords,5);musicTitle=text("",15,ink);musicTitle.setSingleLine(true);musicTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);musicTitle.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));musicWords.addView(musicTitle);gap(musicWords,4);musicSubtitle=text("",11,muted);musicSubtitle.setSingleLine(true);musicSubtitle.setEllipsize(android.text.TextUtils.TruncateAt.END);musicWords.addView(musicSubtitle);LinearLayout.LayoutParams wordsLp=new LinearLayout.LayoutParams(0,-2,1);wordsLp.setMarginStart(dp(12));musicCard.addView(musicWords,wordsLp);FrameLayout.LayoutParams musicLp=new FrameLayout.LayoutParams(dp(310),dp(84),Gravity.END|Gravity.TOP);musicLp.setMargins(0,dp(76),dp(40),0);root.addView(musicCard,musicLp);
+        musicCard=row();musicCard.setGravity(Gravity.CENTER_VERTICAL);musicCard.setPadding(dp(10),dp(10),dp(13),dp(10));musicCard.setBackground(new GlassDrawable(dp(20),false));musicCard.setElevation(dp(5));musicCard.setFocusable(true);musicCard.setClickable(true);musicCard.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);musicCard.setVisibility(View.GONE);musicCard.setOnClickListener(v->openAmbientMusic());musicCard.setOnFocusChangeListener((v,focused)->{v.setBackground(new GlassDrawable(dp(20),focused));v.animate().cancel();v.animate().scaleX(focused?1.035f:1f).scaleY(focused?1.035f:1f).translationZ(dp(focused?5:0)).setDuration(190).start();});
+        musicArt=new ImageView(this);musicArt.setScaleType(ImageView.ScaleType.CENTER_CROP);musicArt.setBackground(shape(0x38101d2d,0));musicCard.addView(musicArt,new LinearLayout.LayoutParams(dp(64),dp(64)));LinearLayout musicWords=column();LinearLayout musicLive=row();musicIndicator=new PlayingIndicator(this);musicLive.addView(musicIndicator,new LinearLayout.LayoutParams(dp(14),dp(12)));musicStatus=text("NOW PLAYING",10,mint);musicStatus.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));LinearLayout.LayoutParams statusLp=new LinearLayout.LayoutParams(-2,-2);statusLp.setMarginStart(dp(7));musicLive.addView(musicStatus,statusLp);musicWords.addView(musicLive);gap(musicWords,5);musicTitle=text("",15,ink);marquee(musicTitle);musicTitle.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));musicWords.addView(musicTitle);gap(musicWords,4);musicSubtitle=text("",11,muted);marquee(musicSubtitle);musicWords.addView(musicSubtitle);LinearLayout.LayoutParams wordsLp=new LinearLayout.LayoutParams(0,-2,1);wordsLp.setMarginStart(dp(12));musicCard.addView(musicWords,wordsLp);FrameLayout.LayoutParams musicLp=new FrameLayout.LayoutParams(dp(310),dp(84),Gravity.END|Gravity.TOP);musicLp.setMargins(0,dp(76),dp(40),0);root.addView(musicCard,musicLp);
         library=column();
     }
     void showLibrary(){
@@ -227,7 +234,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
                 found.add(new App(pkg,label,i,icon,accent));
             }
             Collections.sort(found,(a,b)->a.label.compareToIgnoreCase(b.label));
-            handler.post(()->{loading=false;if(isDestroyed())return;apps.clear();apps.addAll(found);if(!prefs.contains("favorites")){for(int n=0;n<Math.min(6,apps.size());n++)favorites.add(apps.get(n).pkg);prefs.edit().putString("favorites",String.join(",",favorites)).apply();}loaded=true;updateApps();});
+            handler.post(()->{loading=false;if(isDestroyed())return;if(reloadAppsRequested){reloadAppsRequested=false;loadApps();return;}boolean reopenLibrary=active&&libraryDialog!=null&&libraryDialog.isShowing();if(reopenLibrary)libraryDialog.dismiss();apps.clear();apps.addAll(found);if(!prefs.contains("favorites")){for(int n=0;n<Math.min(6,apps.size());n++)favorites.add(apps.get(n).pkg);prefs.edit().putString("favorites",String.join(",",favorites)).apply();}loaded=true;updateApps();if(reopenLibrary)showLibrary();});
         });
     }
     App app(String p){for(App a:apps)if(a.pkg.equals(p))return a;return null;}
@@ -352,8 +359,11 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         boolean up="up".equals(direction);View next=null;
         if(isInside(current,favoriteRow))next=up?firstFocusable(watchRow):null;
         else if(isInside(current,watchRow))next=up?topControl():selectedFavorite();
+        else if(current==musicCard)next=up?settingsButton:firstFocusable(watchRow);
+        else if(current==settingsButton&&!up&&musicCard!=null&&musicCard.isShown())next=musicCard;
         else if(current==remoteHit||current==libraryButton||current==settingsButton)next=up?null:firstFocusable(watchRow);
         if(next==null&&isInside(current,favoriteRow)&&up)next=topControl();
+        if(next==null&&current==musicCard&&!up)next=selectedFavorite();
         if(next==null&&!isInside(current,favoriteRow)&&!isInside(current,watchRow)&&(current==remoteHit||current==libraryButton||current==settingsButton)&&!up)next=selectedFavorite();
         if(next!=null)return moveTo(next,direction);
         return moveTo(current.focusSearch(up?View.FOCUS_UP:View.FOCUS_DOWN),direction);
@@ -361,23 +371,49 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     boolean isInside(View view,android.view.ViewGroup container){if(view==null||container==null)return false;View current=view;while(current!=null){if(current==container)return true;android.view.ViewParent parent=current.getParent();current=parent instanceof View?(View)parent:null;}return false;}
     void saveFavorites(){prefs.edit().putString("favorites",android.text.TextUtils.join(",",favorites)).apply();renderFavorites();}
     void appOptions(App a,boolean fromFavorite){
-        boolean pinned=favorites.contains(a.pkg);ArrayList<String> entries=new ArrayList<>();entries.add("Open "+a.label);entries.add(pinned?"Unpin from favorites":"Pin to favorites");if(pinned)entries.add("Move to first favorite");entries.add("App information");
-        new AlertDialog.Builder(this).setTitle(a.label).setItems(entries.toArray(new String[0]),(d,which)->{
-            if(which==0)open(a.intent);
-            else if(which==1){if(pinned)favorites.remove(a.pkg);else favorites.add(a.pkg);restoreFocus=(fromFavorite&&!pinned?"fav:":"app:")+a.pkg;saveFavorites();}
-            else if(pinned&&which==2){favorites.remove(a.pkg);favorites.add(0,a.pkg);restoreFocus="fav:"+a.pkg;saveFavorites();}
-            else open(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:"+a.pkg)));
-        }).setNegativeButton("Close",null).show();
+        boolean pinned=favorites.contains(a.pkg);ArrayList<String> entries=new ArrayList<>();ArrayList<Runnable> actions=new ArrayList<>();
+        entries.add("Open "+a.label);actions.add(()->open(a.intent));
+        entries.add(pinned?"Unpin from favorites":"Pin to favorites");actions.add(()->{if(pinned)favorites.remove(a.pkg);else favorites.add(a.pkg);restoreFocus=(fromFavorite&&!pinned?"fav:":"app:")+a.pkg;saveFavorites();});
+        if(pinned){entries.add("Move to first favorite");actions.add(()->{favorites.remove(a.pkg);favorites.add(0,a.pkg);restoreFocus="fav:"+a.pkg;saveFavorites();});}
+        entries.add("App information");actions.add(()->open(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:"+a.pkg))));
+        entries.add("Uninstall app");actions.add(()->open(new Intent(Intent.ACTION_UNINSTALL_PACKAGE,android.net.Uri.parse("package:"+a.pkg))));
+        new AlertDialog.Builder(this).setTitle(a.label).setItems(entries.toArray(new String[0]),(d,which)->actions.get(which).run()).setNegativeButton("Close",null).show();
     }
-    void options(){new AlertDialog.Builder(this).setTitle("Glide TV").setItems(new String[]{"TV settings","Location & scenery","Music playback info","Refresh apps and watch history","Mobile control","Check for updates","About Glide TV"},(d,n)->{
+    void options(){new AlertDialog.Builder(this).setTitle("Glide TV").setItems(new String[]{"TV settings","Permissions & access","Location & scenery","Music playback info","Refresh apps and watch history","Mobile control","Check for updates","About Glide TV"},(d,n)->{
         if(n==0)open(new Intent(Settings.ACTION_SETTINGS));
-        else if(n==1)chooseWeatherCity();
-        else if(n==2)showMusicAccess();
-        else if(n==3){loadApps();loadWatchNext();}
-        else if(n==4)showMobileControl();
-        else if(n==5){if(appUpdater==null)appUpdater=new AppUpdater(this);appUpdater.check();}
+        else if(n==1)showPermissionsAndAccess();
+        else if(n==2)chooseWeatherCity();
+        else if(n==3)showMusicAccess();
+        else if(n==4){loadApps();loadWatchNext();}
+        else if(n==5)showMobileControl();
+        else if(n==6){if(appUpdater==null)appUpdater=new AppUpdater(this);appUpdater.check();}
         else new AlertDialog.Builder(this).setTitle("Glide Glass").setMessage("Glide TV "+appVersion()+"\n\nHold OK on a favorite to move it, then use left/right. OK saves, Back cancels. Press Menu for other app options. Pin apps from the library with a long press.\n\nContinue Watching appears a few seconds after Home opens and shows only history shared by the highlighted app. Optional music information shows metadata shared by the active media app and never controls playback. RAM and storage update every five seconds while Home is visible.\n\nWeather: Open-Meteo (open-meteo.com). City search: Open-Meteo / GeoNames. Air quality: CAMS ENSEMBLE via Open-Meteo. CC BY 4.0. AQI uses the US scale; UV and rain chance are hourly forecasts. No ads or analytics.").setPositiveButton("Done",null).show();
     }).setNegativeButton("Close",null).show();}
+    boolean maybeSetupPermissions(){
+        if(prefs.getBoolean("permission_setup_prompted",false)||permissionPromptScheduled)return false;
+        permissionPromptScheduled=true;handler.postDelayed(()->{permissionPromptScheduled=false;if(!active||isDestroyed())return;prefs.edit().putBoolean("permission_setup_prompted",true).apply();permissionSetupActive=true;
+            AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Set up Glide TV").setMessage("Glide can ask for its standard permissions together. Android requires separate system screens for music metadata and installing Glide updates. You stay in control and can change every choice later.").setPositiveButton("Grant standard permissions",(d,n)->requestStandardPermissions(true)).setNeutralButton("Review access",(d,n)->showPermissionsAndAccess()).setNegativeButton("Later",(d,n)->{permissionSetupActive=false;maybeSetupLocation();}).create();dialog.setOnCancelListener(d->{permissionSetupActive=false;maybeSetupLocation();});dialog.show();
+        },700);return true;
+    }
+    ArrayList<String> missingStandardPermissions(){
+        ArrayList<String> missing=new ArrayList<>();
+        if(checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION)!=PackageManager.PERMISSION_GRANTED&&checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){missing.add(android.Manifest.permission.ACCESS_COARSE_LOCATION);missing.add(android.Manifest.permission.ACCESS_FINE_LOCATION);}
+        if(Build.VERSION.SDK_INT>=31&&checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT)!=PackageManager.PERMISSION_GRANTED)missing.add(android.Manifest.permission.BLUETOOTH_CONNECT);
+        if(checkSelfPermission("android.permission.READ_TV_LISTINGS")!=PackageManager.PERMISSION_GRANTED)missing.add("android.permission.READ_TV_LISTINGS");
+        return missing;
+    }
+    void requestStandardPermissions(boolean continueSetup){ArrayList<String> missing=missingStandardPermissions();showAccessAfterPermissionResult=continueSetup;if(missing.isEmpty()){if(continueSetup)showPermissionsAndAccess();return;}requestPermissions(missing.toArray(new String[0]),60);}
+    void showPermissionsAndAccess(){
+        permissionSetupActive=true;
+        boolean standard=missingStandardPermissions().isEmpty(),music=MusicSessions.accessGranted(this),installs=Build.VERSION.SDK_INT<26||getPackageManager().canRequestPackageInstalls();
+        String[] entries={"Standard TV permissions  ·  "+(standard?"Granted":"Needs access"),"Music metadata access  ·  "+(music?"On":"Off"),"Install Glide updates  ·  "+(installs?"On":"Off"),"RAM cleanup helper  ·  Computer setup"};
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Permissions & access · Android opens special access separately").setItems(entries,(d,n)->{
+            if(n==0)requestStandardPermissions(true);
+            else if(n==1){permissionSetupActive=false;Intent access=new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);if(access.resolveActivity(getPackageManager())==null)access=new Intent(Settings.ACTION_SETTINGS);open(access);}
+            else if(n==2){permissionSetupActive=false;if(Build.VERSION.SDK_INT>=26)open(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,android.net.Uri.parse("package:"+getPackageName())));else toast("Install access is already available on this Android version.");}
+            else{permissionSetupActive=false;new AlertDialog.Builder(this).setTitle("RAM cleanup helper").setMessage("Android does not offer an install-time permission for TV-wide memory details or cleanup. Start Glide's authenticated helper from a computer after installing or rebooting the TV. Glide still shows this app's memory without it.").setPositiveButton("Done",null).show();}
+        }).setPositiveButton("Done",(d,n)->{permissionSetupActive=false;maybeSetupLocation();}).create();dialog.setOnCancelListener(d->{permissionSetupActive=false;maybeSetupLocation();});dialog.show();
+    }
     void showMusicAccess(){
         boolean granted=MusicSessions.accessGranted(this);String status=!granted?"Access is off.":currentMusic==null?"Access is on. Nothing is playing right now.":"Access is on. Showing “"+currentMusic.title+"”.";
         new AlertDialog.Builder(this).setTitle("Music playback info").setMessage(status+"\n\nGlide reads only the active title, artist, album and artwork shared by media apps while Home is visible. Metadata stays on this TV. Glide does not control playback, keep a listening history or upload this information.\n\nAndroid notification access is required to discover media sessions. Some apps and TV firmware do not expose them. You can turn access off at any time.").setPositiveButton(granted?"Manage access":"Open notification access",(dialog,which)->{Intent access=new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);if(access.resolveActivity(getPackageManager())==null)access=new Intent(Settings.ACTION_SETTINGS);open(access);}).setNegativeButton("Close",null).show();
@@ -385,13 +421,14 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
     String appVersion(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception e){return "";}}
     void showMusic(MusicSessions.Track track){
         currentMusic=track;if(musicCard==null)return;
-        if(track==null){musicCard.animate().cancel();musicCard.setVisibility(View.GONE);musicArt.setImageDrawable(null);return;}
-        musicTitle.setText(track.title);musicSubtitle.setText(track.subtitle);if(track.artwork==null)musicArt.setImageDrawable(null);else musicArt.setImageBitmap(track.artwork);musicCard.setContentDescription("Now playing "+track.title+(track.subtitle.isEmpty()?"":" by "+track.subtitle));
+        if(track==null){musicCard.animate().cancel();musicCard.setVisibility(View.GONE);musicArt.setImageDrawable(null);musicIndicator.setPlaying(false);return;}
+        boolean playing=track.state==MusicSelection.PLAYING;musicStatus.setText(playing?"NOW PLAYING":"PLAYBACK PAUSED");musicIndicator.setPlaying(playing);musicTitle.setText(track.title);musicSubtitle.setText(track.subtitle);if(track.artwork==null)musicArt.setImageDrawable(null);else musicArt.setImageBitmap(track.artwork);musicCard.setContentDescription((playing?"Now playing ":"Paused ")+track.title+(track.subtitle.isEmpty()?"":" by "+track.subtitle)+". Select for Ambient view.");
         if(musicCard.getVisibility()!=View.VISIBLE){musicCard.setAlpha(0f);musicCard.setTranslationY(dp(8));musicCard.setVisibility(View.VISIBLE);musicCard.animate().alpha(1f).translationY(0).setDuration(280).setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f)).start();}
     }
+    void openAmbientMusic(){if(currentMusic==null)return;Intent intent=new Intent(this,AmbientMusicActivity.class);if(visualMusicFixtureEnabled())intent.putExtra("visual_music_fixture",true);open(intent);}
     boolean visualMusicFixtureEnabled(){return (getApplicationInfo().flags&ApplicationInfo.FLAG_DEBUGGABLE)!=0&&getIntent().getBooleanExtra("visual_music_fixture",false);}
     MusicSessions.Track musicFixture(){
-        Bitmap art=Bitmap.createBitmap(128,128,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(art);Paint paint=new Paint(3);paint.setShader(new LinearGradient(0,0,128,128,0xffe35376,0xff443bd7,Shader.TileMode.CLAMP));canvas.drawRect(0,0,128,128,paint);paint.setShader(null);paint.setColor(0xe8ffffff);canvas.drawCircle(64,64,32,paint);paint.setColor(0xff241d52);canvas.drawCircle(64,64,9,paint);return new MusicSessions.Track("Midnight Drive","Glide Sessions", "Demo player",art);
+        Bitmap art=Bitmap.createBitmap(128,128,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(art);Paint paint=new Paint(3);paint.setShader(new LinearGradient(0,0,128,128,0xffe35376,0xff443bd7,Shader.TileMode.CLAMP));canvas.drawRect(0,0,128,128,paint);paint.setShader(null);paint.setColor(0xe8ffffff);canvas.drawCircle(64,64,32,paint);paint.setColor(0xff241d52);canvas.drawCircle(64,64,9,paint);return new MusicSessions.Track("Midnight Drive","Glide Sessions", "Demo player",MusicSelection.PLAYING,art);
     }
     void showMobileControl(){
         try{
@@ -524,7 +561,7 @@ public final class HomeActivity extends Activity implements RemoteControlServer.
         if(permission){gap(box,6);box.addView(button("Enable Continue Watching",()->requestPermissions(new String[]{"android.permission.READ_TV_LISTINGS"},40)));}
         watchRow.addView(box,new LinearLayout.LayoutParams(-2,dp(100)));
     }
-    @Override public void onRequestPermissionsResult(int code,String[] names,int[] grants){super.onRequestPermissionsResult(code,names,grants);if(code==WeatherLocation.PERMISSION)weatherLocation.permissionResult();else if(code==40)loadWatchNext();else if(code==41){connectivity.update();connectivity.openWifiSettings();}else if(code==42){connectivity.update();connectivity.openBluetoothSettings();}else if(code==43)connectivity.update();}
+    @Override public void onRequestPermissionsResult(int code,String[] names,int[] grants){super.onRequestPermissionsResult(code,names,grants);if(code==WeatherLocation.PERMISSION)weatherLocation.permissionResult();else if(code==40)loadWatchNext();else if(code==41){connectivity.update();connectivity.openWifiSettings();}else if(code==42){connectivity.update();connectivity.openBluetoothSettings();}else if(code==43)connectivity.update();else if(code==60){connectivity.update();loadWatchNext();boolean follow=showAccessAfterPermissionResult;showAccessAfterPermissionResult=false;if(follow)showPermissionsAndAccess();}}
     private static class WatchHolder {LinearLayout frame;ImageView image;TextView title;ProgressRim rim;float done;int accent=IconPalette.NEUTRAL;WatchItem item;}
     WatchHolder makeWatchCard(){
         WatchHolder holder=new WatchHolder();
