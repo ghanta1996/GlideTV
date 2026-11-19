@@ -2,13 +2,13 @@
 
 A lightweight home for Android TV and Google TV, with living scenery, favorite apps and control from your phone.
 
-[**Download APK**](https://github.com/ghanta1996/GlideTV/releases/latest) · [Setup guide](docs/DEFAULT_HOME.md) · [What's new](CHANGELOG.md)
+[**Download APK**](../../releases/latest) · [Setup guide](docs/DEFAULT_HOME.md) · [What's new](CHANGELOG.md)
 
 **Downloader code: `3583851`** · [Short download link](https://aftv.news/3583851)
 
-![Glide TV with the optional Abu Dhabi scenery pack](screenshots/home-abu-dhabi.png)
+![Glide TV with generic scenery and synthetic demo data](screenshots/home-generic.png)
 
-*Optional Abu Dhabi scenery. Choose your own location during setup.*
+*Generic example captured with synthetic demo apps and media metadata. Choose your own location during setup.*
 
 ## Get started
 
